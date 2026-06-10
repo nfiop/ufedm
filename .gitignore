@@ -1,0 +1,39 @@
+# CMake
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Kernel module build artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+*.symvers
+Module.symvers
+modules.order
+
+# kbuild metadata
+.tmp_versions/
+
+# Dependency files
+*.cmd
+.*.cmd
+*.d
+
+# Generated linker outputs
+*.a
+*.so
+*.out
+
+# Debug symbols
+*.lst
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
