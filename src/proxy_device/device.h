@@ -17,10 +17,13 @@
 struct ufedm_proxy_device {
 	struct device *device;
 	struct class *device_class;
+
 	struct cdev ring_cdev;
-	struct shared_region *shared;
 	dev_t devno;
+
 	atomic_t already_open;
+
+	struct shared_region *shared;
 };
 
 int proxy_device_create(struct ufedm_proxy_device *dev);
