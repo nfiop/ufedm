@@ -6,20 +6,7 @@
 #ifndef __RING_H
 #define __RING_H
 
-#ifdef __KERNEL__
-
-#include <linux/types.h>
-
-#else
-
-#include <stdint.h>
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-#endif
+#include "defs.h"
 
 #define RING_SIZE (64 * 1024)
 
