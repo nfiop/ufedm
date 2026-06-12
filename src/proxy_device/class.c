@@ -18,15 +18,15 @@ struct prox_dev_class {
 
 static struct prox_dev_class s_all_devs;
 
-struct ufedm_proxy_device *proxy_device_resolve_by_minor(int minor)
+struct ufedm_proxy_device *proxy_device_resolve_by_minor(size_t minor)
 {
-	int dev_minor;
-	for (int idx = 0; idx < s_all_devs.count; idx++) {
-		dev_minor = MINOR(s_all_devs.dev_arr[idx].devno);
-		if (dev_minor == minor)
-			return &s_all_devs.dev_arr[idx];
-	}
-	return NULL;
+	// Minor number is simply an index to the device we want
+	// so we don't anything sophisticated here.
+	// This is all guaranteed by the creation seqeunce in the
+	// add_devices function.
+	if (minor >= s_all_devs.count)
+		return NULL;
+	return &s_all_devs.dev_arr[minor];
 }
 
 static void remove_devices(struct prox_dev_class *devs, int max_idx)
