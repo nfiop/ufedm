@@ -15,6 +15,7 @@
 
 static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 {
+	int ret;
 	dev_t dev = inode->i_rdev;
 	int minor = MINOR(dev);
 
@@ -23,19 +24,30 @@ static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 	if (!prox_dev)
 		return -ENODEV;
 
+	if (!try_module_get(THIS_MODULE))
+        return -ENODEV;
+
 	// Don't allow opening more than once, as we can't really
 	// handle multiple clients anyway.
-	if (atomic_cmpxchg(&prox_dev->already_open, 0, 1))
-		return -EBUSY;
+	if (atomic_cmpxchg(&prox_dev->already_open, 0, 1)) {
+		ret = -EBUSY;
+		goto exit_error;
+	}
+
 
 	filp->private_data = prox_dev;
 	return 0;
+
+exit_error:
+	module_put(THIS_MODULE);
+	return ret;
 }
 
 static int proxy_chrdev_release(struct inode *inode, struct file *filp)
 {
 	struct ufedm_proxy_device *prox_dev = filp->private_data;
 	atomic_set(&prox_dev->already_open, 0);
+	module_put(THIS_MODULE);
 	return 0;
 }
 
