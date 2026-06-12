@@ -15,27 +15,11 @@ rm -rf build/
 mkdir -p build
 ```
 
-Point CMake to the Buildroot directory with the kernel sources and
-the prepared toolchain, for example:
-```sh
-cmake -B build -DBUILDROOT_DIR=../buildroot/ -DKERNEL_ARCH=$(grep '^BR2_ARCH=' ../buildroot/.config | cut -d'=' -f2)
-```
-
-OR simply:
-```
-cmake -B build -DBUILDROOT_DIR=../buildroot/ -DKERNEL_ARCH=arm
-```
-
 ## Compile
 
-Simply run in the `build` directory:
+Simply run (with adjustments to your buildroot path):
 ```sh
-make
-```
-
-A one-liner to do this:
-```sh
-pushd build; make clean; make; popd
+KERNEL_ARCH=arm BUILDROOT_DIR=../buildroot/ ./build.sh
 ```
 
 ## Run

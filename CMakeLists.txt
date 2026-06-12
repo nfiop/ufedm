@@ -19,6 +19,9 @@ endif()
 
 set(BR_OUTPUT "${BUILDROOT_DIR}/output")
 
+message(STATUS "C compiler: ${CMAKE_C_COMPILER}")
+message(STATUS "System name: ${CMAKE_SYSTEM_NAME}")
+
 # Find the kernel tree
 file(GLOB KERNEL_DIRS
     "${BR_OUTPUT}/build/linux-*")
