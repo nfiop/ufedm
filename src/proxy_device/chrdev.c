@@ -25,7 +25,7 @@ static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 		return -ENODEV;
 
 	if (!try_module_get(THIS_MODULE))
-        return -ENODEV;
+		return -ENODEV;
 
 	// Don't allow opening more than once, as we can't really
 	// handle multiple clients anyway.
@@ -33,7 +33,6 @@ static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 		ret = -EBUSY;
 		goto exit_error;
 	}
-
 
 	filp->private_data = prox_dev;
 	return 0;

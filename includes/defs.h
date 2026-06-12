@@ -12,10 +12,10 @@
 
 // Detect whether we are compiling in the kernel or userspace
 #ifdef __KERNEL__
-#include <linux/types.h>   /* __u32, __u64 */
+#include <linux/types.h> /* __u32, __u64 */
 #else
-#include <stdint.h>        /* uint32_t, uint64_t */
-typedef uint8_t  __u8;
+#include <stdint.h> /* uint32_t, uint64_t */
+typedef uint8_t __u8;
 typedef uint16_t __u16;
 typedef uint32_t __u32;
 typedef uint64_t __u64;
