@@ -16,15 +16,15 @@ struct prox_dev_class {
 	dev_t devno;
 };
 
-static struct prox_dev_class all_devs;
+static struct prox_dev_class s_all_devs;
 
 struct ufedm_proxy_device *proxy_device_resolve_by_minor(int minor)
 {
 	int dev_minor;
-	for (int idx = 0; idx < all_devs.count; idx++) {
-		dev_minor = MINOR(all_devs.dev_arr[idx].devno);
+	for (int idx = 0; idx < s_all_devs.count; idx++) {
+		dev_minor = MINOR(s_all_devs.dev_arr[idx].devno);
 		if (dev_minor == minor)
-			return &all_devs.dev_arr[idx];
+			return &s_all_devs.dev_arr[idx];
 	}
 	return NULL;
 }
@@ -96,23 +96,23 @@ int proxy_device_class_init(size_t dev_count)
 {
 	int ret;
 
-	all_devs.device_class = class_create("ufedm_proxy");
-	if (IS_ERR(all_devs.device_class))
-		return PTR_ERR(all_devs.device_class);
+	s_all_devs.device_class = class_create("ufedm_proxy");
+	if (IS_ERR(s_all_devs.device_class))
+		return PTR_ERR(s_all_devs.device_class);
 
-	all_devs.count = dev_count;
-	ret = alloc_array(&all_devs);
+	s_all_devs.count = dev_count;
+	ret = alloc_array(&s_all_devs);
 	if (ret != 0)
 		goto failed_allocating_array;
 
-	ret = proxy_device_class_create_devices(&all_devs);
+	ret = proxy_device_class_create_devices(&s_all_devs);
 	if (ret != 0)
 		goto failed_creating_devices;
 
 	return 0;
 
 failed_creating_devices:
-	kvfree(all_devs.dev_arr);
+	kvfree(s_all_devs.dev_arr);
 failed_allocating_array:
 	return ret;
 }
@@ -120,9 +120,9 @@ failed_allocating_array:
 void proxy_device_class_exit(void)
 {
 	// We do these in revese to proxy_device_class_create_devices flow
-	remove_devices(&all_devs, all_devs.count);
-	unregister_chrdev_region(all_devs.devno, all_devs.count);
+	remove_devices(&s_all_devs, s_all_devs.count);
+	unregister_chrdev_region(s_all_devs.devno, s_all_devs.count);
 
-	kvfree(all_devs.dev_arr); // free the allocated array for all devices
-	class_destroy(all_devs.device_class);
+	kvfree(s_all_devs.dev_arr); // free the allocated array for all devices
+	class_destroy(s_all_devs.device_class);
 }
