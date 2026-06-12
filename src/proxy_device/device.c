@@ -14,9 +14,7 @@
 
 static void unmap_shared_region(struct ufedm_proxy_device *dev)
 {
-	size_t size = sizeof(struct shared_region);
-	unsigned int order = get_order(size);
-	free_pages((unsigned long)dev->shared, order);
+	kvfree(dev->shared);
 }
 
 static int map_shared_region(struct ufedm_proxy_device *dev)
