@@ -60,7 +60,7 @@ static int alloc_array(struct prox_dev_class *devs)
 	if (devs->count == 0 || devs->count > 20)
 		return -EINVAL;
 
-	devs->dev_arr = kzalloc(
+	devs->dev_arr = kvzalloc(
 	    devs->count * sizeof(struct ufedm_proxy_device), GFP_KERNEL);
 
 	if (!devs->dev_arr)
@@ -112,7 +112,7 @@ int proxy_device_class_init(size_t dev_count)
 	return 0;
 
 failed_creating_devices:
-	kfree(all_devs.dev_arr);
+	kvfree(all_devs.dev_arr);
 failed_allocating_array:
 	return ret;
 }
@@ -123,6 +123,6 @@ void proxy_device_class_exit(void)
 	remove_devices(&all_devs, all_devs.count);
 	unregister_chrdev_region(all_devs.devno, all_devs.count);
 
-	kfree(all_devs.dev_arr); // free the allocated array for all devices
+	kvfree(all_devs.dev_arr); // free the allocated array for all devices
 	class_destroy(all_devs.device_class);
 }
