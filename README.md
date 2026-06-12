@@ -33,6 +33,11 @@ Simply run in the `build` directory:
 make
 ```
 
+A one-liner to do this:
+```sh
+pushd build; make clean; make; popd
+```
+
 ## Run
 
 The kernel module will be in `build/kmod` directory now.
