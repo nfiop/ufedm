@@ -1,4 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (c) 2026 Liav A
+ */
 
 #include <linux/fs.h>
 #include <linux/mm.h>

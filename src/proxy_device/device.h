@@ -1,3 +1,7 @@
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (c) 2026 Liav A
+ */
 
 #ifndef __PROXY_DEVICE_
 #define __PROXY_DEVICE_
