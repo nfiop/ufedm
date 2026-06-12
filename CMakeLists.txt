@@ -64,3 +64,5 @@ add_custom_target(module ALL
         CROSS_COMPILE=${CROSS_COMPILE}
         modules
 )
+
+add_subdirectory(utests)
