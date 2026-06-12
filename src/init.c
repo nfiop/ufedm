@@ -53,28 +53,30 @@ static int __init ufedm_init(void)
 	if (ret != 0)
 		return ret;
 
-	ret = upper_mtd_initialize_devices(mtds, mtds_count);
-	if (ret != 0)
-		return ret;
-
-	print_upper_to_backend_mtd_mapping();
-
 	ret = proxy_device_class_init(mtds_count);
 	if (ret != 0)
 		goto error_create_proxy_device_class;
 
+	ret = upper_mtd_initialize_devices(mtds, mtds_count);
+	if (ret != 0)
+		goto error_upper_mtd_initialize_devices;
+
+	print_upper_to_backend_mtd_mapping();
+
 	printk(KERN_INFO "ufedm: kernel module loaded!\n");
 	return 0;
 
+error_upper_mtd_initialize_devices:
+	proxy_device_class_exit();
 error_create_proxy_device_class:
 	return ret;
 }
 
 static void __exit ufedm_exit(void)
 {
+	upper_mtd_destroy_devices();
 	proxy_device_class_exit();
 	printk(KERN_INFO "ufedm: kernel module unloaded!\n");
-	upper_mtd_destroy_devices();
 }
 
 module_init(ufedm_init);
