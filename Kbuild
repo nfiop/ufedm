@@ -7,4 +7,4 @@ ufedm-y := src/init.o \
            src/upper_mtd/device.o \
            src/upper_mtd/backend.o
 
-ccflags-y += -I$(src)/includes -I$(src)/src
+ccflags-y += -I$(src)/include -I$(src)/src
