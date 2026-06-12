@@ -1,3 +1,3 @@
 obj-m := ufedm.o
 
-ufedm-y := main.o
+ufedm-y := src/init.o
