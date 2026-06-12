@@ -18,6 +18,13 @@ int open_backend_mtd_device(struct mtd_info **mtd_ptr_in_list, uint mtd_index)
 	}
 
 	struct mtd_info *mtd = *mtd_ptr_in_list;
+	if (mtd->type != MTD_NANDFLASH) {
+		pr_err(
+		    "ufedm: failed to open mtd%d, is not a NAND flash chip!\n",
+		    mtd_index);
+		put_mtd_device(mtd);
+		return -EINVAL;
+	}
 
 	pr_info("ufedm: opened mtd%d (%s)\n", mtd->index, mtd->name);
 	return 0;
