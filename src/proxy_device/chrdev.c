@@ -12,6 +12,9 @@
 
 #include "proxy_device/chrdev.h"
 #include "proxy_device/class.h"
+#include "proxy_ioctl.h"
+
+#include "common/ringbuffer/packet.h"
 
 static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 {
@@ -62,11 +65,57 @@ static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 	return remap_vmalloc_range(vma, prox_dev->shared, 0);
 }
 
+static long proxy_chrdev_ioctl(
+    struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	struct ufedm_proxy_device *prox_dev = filp->private_data;
+	struct mtd_info *backend = smp_load_acquire(&prox_dev->backend_dev);
+	if (!backend)
+		return -EAGAIN;
+
+	switch (cmd) {
+	case PROXY_IOC_GET_STATS: {
+		if (copy_to_user((void __user *)arg, &prox_dev->stats,
+			sizeof(struct proxy_stats)))
+			return -EFAULT;
+		return 0;
+	}
+	case PROXY_IOC_GET_RING_INFO: {
+		struct proxy_ring_info tmp;
+		tmp.ring_size = RING_SIZE;
+		tmp.packet_size = sizeof(struct ring_packet) +
+				  backend->writesize + backend->oobsize;
+		tmp.proto_ver = 0;
+		memset(tmp.reserved, 0, sizeof(__u32) * 6);
+		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp)))
+			return -EFAULT;
+		return 0;
+	}
+
+	case PROXY_IOC_GET_MTD_INFO: {
+		struct proxy_mtd_info tmp;
+		tmp.backend_mtd_index = backend->index;
+		tmp.flash_page_size = backend->writesize + backend->oobsize;
+		tmp.flash_oob_size = backend->oobsize;
+		tmp.flash_pages_per_sector_cnt = tmp.flash_erase_sector_size =
+		    backend->erasesize;
+		memset(tmp.reserved, 0, sizeof(__u32) * 6);
+		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp)))
+			return -EFAULT;
+		return 0;
+	}
+
+	default:
+		return -EINVAL;
+	}
+}
+
 static const struct file_operations fops = {
     .owner = THIS_MODULE,
     .open = proxy_chrdev_open,
     .release = proxy_chrdev_release,
     .mmap = proxy_chrdev_mmap,
+    .unlocked_ioctl = proxy_chrdev_ioctl,
 };
 
 int proxy_chrdev_create(dev_t devno, struct ufedm_proxy_device *dev)

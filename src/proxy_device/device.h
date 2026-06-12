@@ -8,8 +8,10 @@
 
 #include <linux/atomic.h>
 #include <linux/cdev.h>
+#include <linux/mtd/mtd.h>
 #include <linux/types.h>
 
+#include "proxy_ioctl.h"
 #include "shared_rings.h"
 
 #define PROXY_DEVICE_NAME "ufedm_proxy"
@@ -24,6 +26,10 @@ struct ufedm_proxy_device {
 	atomic_t already_open;
 
 	struct shared_region *shared;
+
+	struct mtd_info *backend_dev;
+
+	struct proxy_stats stats;
 };
 
 int proxy_device_create(struct ufedm_proxy_device *dev);

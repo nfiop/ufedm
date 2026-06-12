@@ -9,6 +9,8 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 
+#include "proxy_device/class.h"
+#include "proxy_device/device.h"
 #include "upper_mtd/backend.h"
 #include "upper_mtd/device.h"
 
@@ -89,12 +91,19 @@ static int create_upper_devices(
 {
 	size_t i;
 	int ret;
+	struct ufedm_proxy_device *proxy_dev;
 
 	for (i = 0; i < count; i++) {
+		proxy_dev = proxy_device_resolve_by_minor(i);
+		WARN_ON(proxy_dev == NULL);
 		ret = create_device(&devs[i], backends[i]);
 		if (ret != 0)
 			goto error_create_device;
 		devs[i].backend = backends[i];
+
+		// Connect a backing MTD device to the corresponding proxy
+		// device so it can do full I/O work.
+		smp_store_release(&proxy_dev->backend_dev, backends[i]);
 	}
 
 	return 0;
