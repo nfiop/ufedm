@@ -20,23 +20,23 @@ static int upper_read(
     struct mtd_info *mtd, loff_t from, size_t len, size_t *retlen, u_char *buf)
 {
 	WARN_ON(mtd->priv == NULL);
-	struct mtd_info *backend = mtd->priv;
-	return mtd_read(backend, from, len, retlen, buf);
+	struct upper_mtd_device *dev = mtd->priv;
+	return mtd_read(dev->backend, from, len, retlen, buf);
 }
 
 static int upper_write(struct mtd_info *mtd, loff_t to, size_t len,
     size_t *retlen, const u_char *buf)
 {
 	WARN_ON(mtd->priv == NULL);
-	struct mtd_info *backend = mtd->priv;
-	return mtd_write(backend, to, len, retlen, buf);
+	struct upper_mtd_device *dev = mtd->priv;
+	return mtd_write(dev->backend, to, len, retlen, buf);
 }
 
 static int upper_erase(struct mtd_info *mtd, struct erase_info *instr)
 {
 	WARN_ON(mtd->priv == NULL);
-	struct mtd_info *backend = mtd->priv;
-	return mtd_erase(backend, instr);
+	struct upper_mtd_device *dev = mtd->priv;
+	return mtd_erase(dev->backend, instr);
 }
 
 static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend)
@@ -60,6 +60,8 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend)
 	dev->upper->_read = upper_read;
 	dev->upper->_write = upper_write;
 	dev->upper->_erase = upper_erase;
+
+	dev->upper->priv = dev->upper;
 
 	ret = mtd_device_register(dev->upper, NULL, 0);
 	if (ret) {
