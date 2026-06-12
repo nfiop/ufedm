@@ -6,6 +6,7 @@
 #include <linux/cdev.h>
 #include <linux/fs.h>
 
+#include "defs.h"
 #include "proxy_device/class.h"
 
 struct prox_dev_class {
@@ -55,9 +56,8 @@ static int add_devices(struct prox_dev_class *devs, int *max_idx)
 
 static int alloc_array(struct prox_dev_class *devs)
 {
-	// Protect against invalid numbers right here
-	// 20 is a made-up number. It can change.
-	if (devs->count == 0 || devs->count > 20)
+	// Protect against invalid numbers right here.
+	if (devs->count == 0 || devs->count > PROXY_MAX_DEVICE_COUNT)
 		return -EINVAL;
 
 	devs->dev_arr = kvzalloc(
@@ -74,7 +74,7 @@ static int proxy_device_class_create_devices(struct prox_dev_class *devs)
 	int device_idx;
 	int ret;
 	ret = alloc_chrdev_region(
-	    &devs->devno, 0, PROXY_DEVICE_COUNT, PROXY_DEVICE_NAME);
+	    &devs->devno, 0, PROXY_MAX_DEVICE_COUNT, PROXY_DEVICE_NAME);
 	if (ret != 0)
 		goto failed_chrdev_region_alloc;
 
