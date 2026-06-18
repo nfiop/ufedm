@@ -113,13 +113,6 @@ error_create_device:
 	return ret;
 }
 
-static void put_backend_mtd_devices(
-    struct mtd_info **mtd_list, size_t max_index)
-{
-	for (size_t i = 0; i < max_index; i++)
-		put_mtd_device(mtd_list[i]);
-}
-
 static int attach_backend_mtd_devices(
     struct mtd_info **mtd_list, uint *mtd_indices_list, size_t count)
 {

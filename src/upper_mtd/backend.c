@@ -29,3 +29,9 @@ int open_backend_mtd_device(struct mtd_info **mtd_ptr_in_list, uint mtd_index)
 	pr_info("ufedm: opened mtd%d (%s)\n", mtd->index, mtd->name);
 	return 0;
 }
+
+void put_backend_mtd_devices(struct mtd_info **mtd_list, size_t max_index)
+{
+	for (size_t i = 0; i < max_index; i++)
+		put_mtd_device(mtd_list[i]);
+}

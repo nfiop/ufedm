@@ -10,5 +10,6 @@
 #include <linux/types.h>
 
 int open_backend_mtd_device(struct mtd_info **mtd_ptr_in_list, uint mtd_index);
+void put_backend_mtd_devices(struct mtd_info **mtd_list, size_t max_index);
 
 #endif
