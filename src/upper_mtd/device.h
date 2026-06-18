@@ -12,6 +12,11 @@
 struct upper_mtd_device {
 	struct mtd_info *backend;
 	struct mtd_info *upper;
+
+	/* Proxy MTD device pointer which will want
+	 * to deref on actual request sending/completion
+	 */
+	struct ufedm_proxy_device* proxy_dev;
 };
 
 int upper_mtd_initialize_devices(uint *mtd_minors_list, size_t count);

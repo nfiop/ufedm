@@ -18,22 +18,6 @@ static struct mtd_info **s_backend_mtds;
 static struct upper_mtd_device *s_upper_mtds;
 static size_t s_mtds_count = 0;
 
-static int upper_read(
-    struct mtd_info *mtd, loff_t from, size_t len, size_t *retlen, u_char *buf)
-{
-	WARN_ON(mtd->priv == NULL);
-	struct upper_mtd_device *dev = mtd->priv;
-	return mtd_read(dev->backend, from, len, retlen, buf);
-}
-
-static int upper_write(struct mtd_info *mtd, loff_t to, size_t len,
-    size_t *retlen, const u_char *buf)
-{
-	WARN_ON(mtd->priv == NULL);
-	struct upper_mtd_device *dev = mtd->priv;
-	return mtd_write(dev->backend, to, len, retlen, buf);
-}
-
 static int upper_erase(struct mtd_info *mtd, struct erase_info *instr)
 {
 	WARN_ON(mtd->priv == NULL);
@@ -41,7 +25,68 @@ static int upper_erase(struct mtd_info *mtd, struct erase_info *instr)
 	return mtd_erase(dev->backend, instr);
 }
 
-static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend)
+static int ensure_safe_environment(struct mtd_info *mtd, struct mtd_oob_ops *ops,
+	struct ufedm_proxy_device **proxy_dev_ptr,
+	struct upper_mtd_device **dev_ptr)
+{
+	WARN_ON_ONCE(mtd->priv == NULL);
+	if (mtd->priv == NULL)
+		return -EIO;
+
+	if (ops->mode == MTD_OPS_RAW) {
+		/* RAW mode is dangerous and eliminates 
+		 * any safe guard of this module. Don't allow it, the
+		 * user can just use the backing MTD device in RAW mode.
+		 * This should prevent a disaster waiting from happening due
+		 * malfunctioning filesystem or userspace program.
+		 *
+		 * And yes, I know this can be a read function we validate, but goddammit
+		 * if someone wants to use this in RAW mode, this is still invalid.
+		*/
+		pr_warn_ratelimited("%s: RAW mode access is denied by this device.\n", mtd->name);
+		return -EOPNOTSUPP;
+    }
+
+	*dev_ptr = mtd->priv;
+
+	*proxy_dev_ptr = (*dev_ptr)->proxy_dev;
+	if (!*proxy_dev_ptr)
+		return -EAGAIN;
+
+	return 0;
+}
+
+static int upper_read_oob(struct mtd_info *mtd, loff_t from,
+                              struct mtd_oob_ops *ops)
+{
+	int ret;
+	struct upper_mtd_device *dev;
+	struct ufedm_proxy_device *proxy_dev;
+
+	ret = ensure_safe_environment(mtd, ops, &proxy_dev, &dev);
+	if (ret != 0)
+		return ret;
+
+    // TODO: Change this when we actually implement the mechanism.
+    return -ENOTSUPP;
+}
+
+static int upper_write_oob(struct mtd_info *mtd, loff_t to,
+                               struct mtd_oob_ops *ops)
+{
+	int ret;
+	struct upper_mtd_device *dev;
+	struct ufedm_proxy_device *proxy_dev;
+
+	ret = ensure_safe_environment(mtd, ops, &proxy_dev, &dev);
+	if (ret != 0)
+		return ret;
+
+	// TODO: Change this when we actually implement the mechanism.
+    return -ENOTSUPP;
+}
+
+static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend, struct ufedm_proxy_device *proxy_dev)
 {
 	int ret;
 
@@ -58,12 +103,20 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend)
 	dev->upper->erasesize = backend->erasesize;
 	dev->upper->writesize = backend->writesize;
 
-	/* Forward operations */
-	dev->upper->_read = upper_read;
-	dev->upper->_write = upper_write;
+	/* Use default mtd_{read,write} functions here */
+	dev->upper->_read = mtd_read;
+	dev->upper->_write = mtd_write;
+
 	dev->upper->_erase = upper_erase;
 
-	dev->upper->priv = dev->upper;
+	dev->upper->_write_oob = upper_write_oob;
+    dev->upper->_read_oob  = upper_read_oob;
+
+	dev->upper->priv = dev;
+
+	// Connect a proxy_dev into our upper device
+	// so it can deref it later on when doing I/O.
+	dev->proxy_dev = proxy_dev;
 
 	ret = mtd_device_register(dev->upper, NULL, 0);
 	if (ret) {
@@ -77,6 +130,7 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend)
 static void destroy_device(struct upper_mtd_device *dev)
 {
 	mtd_device_unregister(dev->upper);
+	dev->proxy_dev = NULL;
 	kvfree(dev->upper);
 }
 
@@ -102,7 +156,7 @@ static int create_upper_devices(
 		if (!proxy_dev)
 			goto error_create_device;
 
-		ret = create_device(&devs[i], backends[i]);
+		ret = create_device(&devs[i], backends[i], proxy_dev);
 		if (ret != 0)
 			goto error_create_device;
 		devs[i].backend = backends[i];
