@@ -96,6 +96,12 @@ static int create_upper_devices(
 	for (i = 0; i < count; i++) {
 		proxy_dev = proxy_device_resolve_by_minor(i);
 		WARN_ON(proxy_dev == NULL);
+		/* There's nothing sane we can do besides just
+		 * exiting with a failure.
+		 */
+		if (!proxy_dev)
+			goto error_create_device;
+
 		ret = create_device(&devs[i], backends[i]);
 		if (ret != 0)
 			goto error_create_device;
