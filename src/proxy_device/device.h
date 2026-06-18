@@ -27,6 +27,12 @@ struct ufedm_proxy_device {
 
 	struct shared_region *shared;
 
+	/* This is a pointer to the backing MTD device
+	 * and not our own made-up device. This ensures
+	 * that upon removal of the module, we always
+	 * have a valid pointer in this struct.
+	 * We ensure this by holding a refcount on it as well.
+	 */
 	struct mtd_info *backend_dev;
 
 	struct proxy_stats stats;
