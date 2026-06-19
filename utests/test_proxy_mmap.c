@@ -40,7 +40,7 @@ static void test_invalid_mmap_size(int fd)
 
 static void test_valid_mmap(int fd)
 {
-	printf("[TEST] VALID MMAP with invalid size\n");
+	printf("[TEST] VALID MMAP\n");
 
 	void *map = mmap(NULL, sizeof(struct shared_region),
 	    PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
