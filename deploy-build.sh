@@ -23,10 +23,10 @@ fi
 
 # Copy user tests
 for f in test_proxy_ioctls test_proxy_mmap; do
-  if [[ -f "build/utests/$f" ]]; then
-    cp -v "build/utests/$f" "$DEST/utests/"
+  if [[ -f "build/user/utests/$f" ]]; then
+    cp -v "build/user/utests/$f" "$DEST/utests/"
   else
-    echo "Warning: build/utests/$f not found"
+    echo "Warning: build/user/utests/$f not found"
   fi
 done
 

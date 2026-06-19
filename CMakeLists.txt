@@ -65,4 +65,4 @@ add_custom_target(module ALL
         modules
 )
 
-add_subdirectory(utests)
+add_subdirectory(user)
