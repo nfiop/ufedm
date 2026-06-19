@@ -161,9 +161,11 @@ static int create_upper_devices(
 			goto error_create_device;
 		devs[i].backend = backends[i];
 
+		mutex_lock(&proxy_dev->backend_lock);
 		// Connect a backing MTD device to the corresponding proxy
 		// device so it can do full I/O work.
-		smp_store_release(&proxy_dev->backend_dev, backends[i]);
+		proxy_dev->backend_dev = backends[i];
+		mutex_unlock(&proxy_dev->backend_lock);
 	}
 
 	return 0;

@@ -32,8 +32,11 @@ struct ufedm_proxy_device {
 	 * that upon removal of the module, we always
 	 * have a valid pointer in this struct.
 	 * We ensure this by holding a refcount on it as well.
+	 * NOTE: This pointer should be protected by backend_lock mutex
+	 * for any case of accessing it.
 	 */
 	struct mtd_info *backend_dev;
+	struct mutex backend_lock;
 
 	struct proxy_stats stats;
 };

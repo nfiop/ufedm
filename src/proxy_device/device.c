@@ -60,6 +60,18 @@ error_map_shared_region:
 
 void proxy_device_destroy(struct ufedm_proxy_device *dev)
 {
+	struct mtd_info* backend_dev;
+
+	mutex_lock(&dev->backend_lock);
+	backend_dev = dev->backend_dev;
+
+	dev->backend_dev = NULL;
+
+	if (backend_dev != NULL)
+		put_mtd_device(backend_dev);
+
+	mutex_unlock(&dev->backend_lock);
+
 	device_destroy(dev->device_class, dev->devno);
 	proxy_chrdev_destory(dev);
 	unmap_shared_region(dev);

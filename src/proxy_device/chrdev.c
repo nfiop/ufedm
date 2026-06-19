@@ -27,29 +27,20 @@ static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 	if (!prox_dev)
 		return -ENODEV;
 
-	if (!try_module_get(THIS_MODULE))
-		return -ENODEV;
-
 	// Don't allow opening more than once, as we can't really
 	// handle multiple clients anyway.
 	if (atomic_cmpxchg(&prox_dev->already_open, 0, 1)) {
-		ret = -EBUSY;
-		goto exit_error;
+		return -EBUSY;
 	}
 
 	filp->private_data = prox_dev;
 	return 0;
-
-exit_error:
-	module_put(THIS_MODULE);
-	return ret;
 }
 
 static int proxy_chrdev_release(struct inode *inode, struct file *filp)
 {
 	struct ufedm_proxy_device *prox_dev = filp->private_data;
 	atomic_set(&prox_dev->already_open, 0);
-	module_put(THIS_MODULE);
 	return 0;
 }
 
@@ -68,17 +59,30 @@ static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 static long proxy_chrdev_ioctl(
     struct file *filp, unsigned int cmd, unsigned long arg)
 {
+	int ret;
+	struct mtd_info *backend;
 	struct ufedm_proxy_device *prox_dev = filp->private_data;
-	struct mtd_info *backend = smp_load_acquire(&prox_dev->backend_dev);
+
+	WARN_ON(prox_dev == NULL);
+	if (prox_dev == NULL)
+		return -EIO;
+
+	mutex_lock(&prox_dev->backend_lock);
+
+	backend = prox_dev->backend_dev;
 	if (!backend)
 		return -EAGAIN;
 
 	switch (cmd) {
 	case PROXY_IOC_GET_STATS: {
 		if (copy_to_user((void __user *)arg, &prox_dev->stats,
-			sizeof(struct proxy_stats)))
-			return -EFAULT;
-		return 0;
+			sizeof(struct proxy_stats))) {
+			ret = -EFAULT;
+			goto exit;
+		}
+		
+		ret = 0;
+		goto exit;
 	}
 	case PROXY_IOC_GET_RING_INFO: {
 		struct proxy_ring_info tmp;
@@ -87,9 +91,13 @@ static long proxy_chrdev_ioctl(
 				  backend->writesize + backend->oobsize;
 		tmp.proto_ver = 0;
 		memset(tmp.reserved, 0, sizeof(__u32) * 6);
-		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp)))
-			return -EFAULT;
-		return 0;
+		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp))) {
+			ret = -EFAULT;
+			goto exit;
+		}
+		
+		ret = 0;
+		goto exit;
 	}
 
 	case PROXY_IOC_GET_MTD_INFO: {
@@ -100,14 +108,23 @@ static long proxy_chrdev_ioctl(
 		tmp.flash_pages_per_sector_cnt = tmp.flash_erase_sector_size =
 		    backend->erasesize;
 		memset(tmp.reserved, 0, sizeof(__u32) * 6);
-		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp)))
-			return -EFAULT;
-		return 0;
+		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp))) {
+			ret = -EINVAL;
+			goto exit;
+		}
+
+		ret = 0;
+		goto exit;
 	}
 
 	default:
-		return -EINVAL;
+		ret = -EINVAL;
+		goto exit;
 	}
+
+exit:
+	mutex_unlock(&prox_dev->backend_lock);
+	return ret;
 }
 
 static const struct file_operations fops = {
