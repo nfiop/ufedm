@@ -91,23 +91,23 @@ static void test_unknown_ioctl(int fd)
 
 int main(int argc, char **argv)
 {
-    int fd;
+	int fd;
 
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <index>\n", argv[0]);
-        return 1;
-    }
+	if (argc != 2) {
+		fprintf(stderr, "Usage: %s <index>\n", argv[0]);
+		return 1;
+	}
 
-    fd = open_proxy_device_by_argv_index(argv[1]);
-    if (fd < 0) {
-        return 1;
-    }
+	fd = open_proxy_device_by_argv_index(argv[1]);
+	if (fd < 0) {
+		return 1;
+	}
 
-    test_proxy_get_mtd_info_cmd(fd);
-    test_proxy_get_ring_info_cmd(fd);
-    test_proxy_get_stats_info_cmd(fd);
-    test_unknown_ioctl(fd);
+	test_proxy_get_mtd_info_cmd(fd);
+	test_proxy_get_ring_info_cmd(fd);
+	test_proxy_get_stats_info_cmd(fd);
+	test_unknown_ioctl(fd);
 
-    close(fd);
-    return 0;
+	close(fd);
+	return 0;
 }
