@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 
+#include "proxy_dev.h"
 #include "proxy_ioctl.h"
 
 static int __test_proxy_get_mtd_info_cmd(int fd)
@@ -90,10 +91,6 @@ static void test_unknown_ioctl(int fd)
 
 int main(int argc, char **argv)
 {
-    char path[64];
-    unsigned long index;
-    char *end;
-
     int fd;
 
     if (argc != 2) {
@@ -101,36 +98,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    errno = 0;
-    index = strtoul(argv[1], &end, 10);
-
-    /* Validation */
-    if (errno != 0) {
-        perror("strtoul");
-        return 1;
-    }
-
-    if (*end != '\0') {
-        fprintf(stderr, "Invalid input: trailing characters '%s'\n", end);
-        return 1;
-    }
-
-    if (index > 1000) {
-        fprintf(stderr, "Index too large (max 1000)\n");
-        return 1;
-    }
-
-    snprintf(path, sizeof(path), "/dev/ufedm_proxy%lu", index);
-
-    printf("Opening %s\n", path);
-
-    fd = open(path, O_RDWR);
+    fd = open_proxy_device_by_argv_index(argv[1]);
     if (fd < 0) {
-        perror("open");
         return 1;
     }
-
-    printf("Device opened successfully\n");
 
     test_proxy_get_mtd_info_cmd(fd);
     test_proxy_get_ring_info_cmd(fd);
