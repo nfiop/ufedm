@@ -28,3 +28,50 @@ The kernel module will be in `build/kmod` directory now.
 
 You can then upload it to the Olimex LIME2 board and load it as usual.
 
+## Limitations
+
+There are several limitations in the design, some are easily solvable and
+some not without putting some effort on your side:
+
+- Raw access on some SPI NAND flash chips are disallowed. This is probably
+  due to a constraint on the hardware side. 
+  
+  See `drivers/mtd/nand/spi/skyhigh.c` for more details.
+
+  For these chips, we probably can't do much anyway without writing with
+  ECC & data layout in the way they **want** anyway.
+
+- We currently support one read and write requests at a time, essentially
+  serializing the entire I/O operation on the flash chip.
+  Whether that's bad or not is up to discussion and performance tests.
+
+- We rely on a raw NAND flash controller. As ChatGPT said - 
+
+  "The driver will attempt to minimize transformation of data/OOB as 
+  much as it supports"
+  If you use a NAND flash controller that does ECC in its die or transform
+  the input before sending it to the NAND flash chip, this driver will
+  fail to work.
+
+  I asked ChatGPT -
+  "if my NAND controller doesn't transform data bytes or change their
+  location and allow bypassing ECC, am I good then?"
+
+  And the answer was - 
+  "Yes — if (and only if) your NAND controller truly behaves that way,
+  then your design is internally consistent."
+  For a NAND flash controller like the one on the Olimex A20 board,
+  we're probably fine.
+
+- Some NAND flash chips have a flag of scrambling, due to high possibility
+  of data corruption if data is not "randomized" upon write.
+
+  We don't handle those chips - see `src/upper_mtd/backend.c` for more
+  details on how to fix this on your setup.
+
+- Although we solve this by hacking a check of a SPI NAND flash chip
+  vs raw flash chips, there's no official check for the actual type,
+  so we are "fine" for version 6.16.8 of the Linux kernel.
+
+  See `src/upper_mtd/backend.c` for more details on the check we do.
+
