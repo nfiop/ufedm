@@ -27,7 +27,7 @@ static void test_invalid_mmap_size(int fd)
 {
 	printf("[TEST] INVALID MMAP with invalid size (expect NULL)\n");
 
-	void *map = mmap(NULL, sizeof(struct shared_region) + 1,
+	void *map = mmap(NULL, sizeof(struct shared_region) * 2,
 	    PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
 	if (map == MAP_FAILED) {
