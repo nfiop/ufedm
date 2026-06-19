@@ -15,7 +15,7 @@
 #include "proxy_device/class.h"
 #include "proxy_ioctl.h"
 
-#include "common/ringbuffer/packet.h"
+#include "rb_packet.h"
 
 static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 {
