@@ -63,8 +63,11 @@ static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 	 * allowing the driver to eventually revoke the mappings from any
 	 * process that has a memory mapping on this device.
 	 */
-	if (!(vma->vm_flags & VM_SHARED))
+	if (!(vma->vm_flags & VM_SHARED)) {
+		pr_warn_ratelimited(
+		    "ufedm_proxy: failed to mmap, only MAP_SHARED allowed\n");
 		return -EINVAL;
+	}
 
 	mutex_lock(&dev->shmem_lock);
 
