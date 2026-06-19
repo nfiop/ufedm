@@ -103,10 +103,6 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 	dev->upper->erasesize = backend->erasesize;
 	dev->upper->writesize = backend->writesize;
 
-	/* Use default mtd_{read,write} functions here */
-	dev->upper->_read = mtd_read;
-	dev->upper->_write = mtd_write;
-
 	dev->upper->_erase = upper_erase;
 
 	dev->upper->_write_oob = upper_write_oob;
@@ -160,6 +156,14 @@ static int create_upper_devices(
 		if (ret != 0)
 			goto error_create_device;
 		devs[i].backend = backends[i];
+
+		// Increase the refcount on a backing MTD device now.
+		// It will be released upon removal of the module
+		// when we remove the proxy devices.
+
+		// FIXME: This is ugly, we already have a pointer,
+		// do we really need to do this?
+		get_mtd_device(NULL, backends[i]->index);
 
 		mutex_lock(&proxy_dev->backend_lock);
 		// Connect a backing MTD device to the corresponding proxy
