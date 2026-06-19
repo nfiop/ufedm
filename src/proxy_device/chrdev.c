@@ -57,6 +57,16 @@ static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	int ret;
 	struct ufedm_proxy_device *dev = filp->private_data;
+	u64 offset = (u64)vma->vm_pgoff << PAGE_SHIFT;
+	u64 len = vma->vm_end - vma->vm_start;
+	u64 max_size = PAGE_ALIGN(sizeof(struct shared_region));
+
+	if (offset + len > max_size) {
+		pr_warn_ratelimited("ufedm_proxy: failed to mmap, (off %llu + "
+				    "len %llu) > max_size %llu\n",
+		    offset, len, max_size);
+		return -EINVAL;
+	}
 
 	/* We only support MAP_SHARED semantics. MAP_PRIVATE will require
 	 * each process to hold its own pages and mapping, therefore not

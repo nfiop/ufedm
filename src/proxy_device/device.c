@@ -31,7 +31,7 @@ static void revoke_shmem_mapping(struct ufedm_proxy_device *dev)
 static int create_shmem_mapping(struct ufedm_proxy_device *dev)
 {
 	dev->shmem_file = shmem_kernel_file_setup(
-	    "ufedm_ringbuffer", sizeof(struct shared_region), 0);
+	    "ufedm_ringbuffer", PAGE_ALIGN(sizeof(struct shared_region)), 0);
 
 	if (IS_ERR(dev->shmem_file))
 		return PTR_ERR(dev->shmem_file);
