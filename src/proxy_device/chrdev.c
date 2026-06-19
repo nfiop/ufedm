@@ -6,6 +6,7 @@
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#include <linux/shmem_fs.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
@@ -18,7 +19,6 @@
 
 static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 {
-	int ret;
 	dev_t dev = inode->i_rdev;
 	int minor = MINOR(dev);
 
@@ -26,6 +26,15 @@ static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 	    proxy_device_resolve_by_minor(minor);
 	if (!prox_dev)
 		return -ENODEV;
+
+	mutex_lock(&prox_dev->shmem_lock);
+
+	if (prox_dev->shmem_revoked) {
+		mutex_unlock(&prox_dev->shmem_lock);
+		return -EIO;
+	}
+
+	mutex_unlock(&prox_dev->shmem_lock);
 
 	// Don't allow opening more than once, as we can't really
 	// handle multiple clients anyway.
@@ -46,14 +55,37 @@ static int proxy_chrdev_release(struct inode *inode, struct file *filp)
 
 static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 {
-	struct ufedm_proxy_device *prox_dev = filp->private_data;
+	int ret;
+	struct ufedm_proxy_device *dev = filp->private_data;
 
-	unsigned long size = vma->vm_end - vma->vm_start;
-
-	if (size > sizeof(struct shared_region))
+	/* We only support MAP_SHARED semantics. MAP_PRIVATE will require
+	 * each process to hold its own pages and mapping, therefore not
+	 * allowing the driver to eventually revoke the mappings from any
+	 * process that has a memory mapping on this device.
+	 */
+	if (!(vma->vm_flags & VM_SHARED))
 		return -EINVAL;
 
-	return remap_vmalloc_range(vma, prox_dev->shared, 0);
+	mutex_lock(&dev->shmem_lock);
+
+	/*
+	 * CRITICAL RACE PROTECTION HERE:
+	 * Prevent mmap after revoke (during device removal & module
+	 * teardown)
+	 */
+	if (dev->shmem_revoked) {
+		mutex_unlock(&dev->shmem_lock);
+		return -EIO;
+	}
+
+	/*
+	 * Delegate to shmem file mapping f_op function now.
+	 * This ensures proper address_space + MM tracking!
+	 */
+	ret = dev->shmem_file->f_op->mmap(dev->shmem_file, vma);
+
+	mutex_unlock(&dev->shmem_lock);
+	return ret;
 }
 
 static long proxy_chrdev_ioctl(
@@ -80,7 +112,7 @@ static long proxy_chrdev_ioctl(
 			ret = -EFAULT;
 			goto exit;
 		}
-		
+
 		ret = 0;
 		goto exit;
 	}
@@ -95,7 +127,7 @@ static long proxy_chrdev_ioctl(
 			ret = -EFAULT;
 			goto exit;
 		}
-		
+
 		ret = 0;
 		goto exit;
 	}

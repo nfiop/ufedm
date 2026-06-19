@@ -6,33 +6,51 @@
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#include <linux/shmem_fs.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
 
 #include "proxy_device/chrdev.h"
 
-static void unmap_shared_region(struct ufedm_proxy_device *dev)
+static void revoke_shmem_mapping(struct ufedm_proxy_device *dev)
 {
-	kvfree(dev->shared);
+	mutex_lock(&dev->shmem_lock);
+
+	if (dev->shmem_revoked) {
+		mutex_unlock(&dev->shmem_lock);
+		return;
+	}
+
+	dev->shmem_revoked = true;
+	unmap_mapping_range(dev->shmem_file->f_mapping, 0, 0, 1);
+
+	mutex_unlock(&dev->shmem_lock);
 }
 
-static int map_shared_region(struct ufedm_proxy_device *dev)
+static int create_shmem_mapping(struct ufedm_proxy_device *dev)
 {
-	dev->shared = kvzalloc(sizeof(struct shared_region), GFP_KERNEL);
+	dev->shmem_file = shmem_kernel_file_setup(
+	    "ufedm_ringbuffer", sizeof(struct shared_region), 0);
 
-	if (!dev->shared)
-		return -ENOMEM;
+	if (IS_ERR(dev->shmem_file))
+		return PTR_ERR(dev->shmem_file);
 
 	return 0;
+}
+
+static void destroy_shmem_mapping(struct ufedm_proxy_device *dev)
+{
+	fput(dev->shmem_file);
+	dev->shmem_file = NULL;
 }
 
 int proxy_device_create(struct ufedm_proxy_device *dev)
 {
 	int ret;
-	ret = map_shared_region(dev);
+	ret = create_shmem_mapping(dev);
 	if (ret)
-		goto error_map_shared_region;
+		goto error_create_shmem_mapping;
 
 	ret = proxy_chrdev_create(dev->devno, dev);
 	if (ret != 0)
@@ -52,15 +70,17 @@ int proxy_device_create(struct ufedm_proxy_device *dev)
 
 error_create_device:
 	proxy_chrdev_destory(dev);
+
 error_proxy_chrdev_create:
-	unmap_shared_region(dev);
-error_map_shared_region:
+	destroy_shmem_mapping(dev);
+
+error_create_shmem_mapping:
 	return ret;
 }
 
 void proxy_device_destroy(struct ufedm_proxy_device *dev)
 {
-	struct mtd_info* backend_dev;
+	struct mtd_info *backend_dev;
 
 	mutex_lock(&dev->backend_lock);
 	backend_dev = dev->backend_dev;
@@ -74,5 +94,8 @@ void proxy_device_destroy(struct ufedm_proxy_device *dev)
 
 	device_destroy(dev->device_class, dev->devno);
 	proxy_chrdev_destory(dev);
-	unmap_shared_region(dev);
+
+	revoke_shmem_mapping(dev);
+
+	destroy_shmem_mapping(dev);
 }

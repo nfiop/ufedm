@@ -8,7 +8,9 @@
 
 #include <linux/atomic.h>
 #include <linux/cdev.h>
+#include <linux/file.h>
 #include <linux/mtd/mtd.h>
+#include <linux/mutex.h>
 #include <linux/types.h>
 
 #include "proxy_ioctl.h"
@@ -25,8 +27,6 @@ struct ufedm_proxy_device {
 
 	atomic_t already_open;
 
-	struct shared_region *shared;
-
 	/* This is a pointer to the backing MTD device
 	 * and not our own made-up device. This ensures
 	 * that upon removal of the module, we always
@@ -39,6 +39,14 @@ struct ufedm_proxy_device {
 	struct mutex backend_lock;
 
 	struct proxy_stats stats;
+
+	/* We allocate a shmem file to get a concise address_space mapping,
+	 * which would be used when doing mmap() on this device for the
+	 * ring buffer operation.
+	 */
+	struct mutex shmem_lock;
+	struct file *shmem_file;
+	bool shmem_revoked;
 };
 
 int proxy_device_create(struct ufedm_proxy_device *dev);
