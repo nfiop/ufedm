@@ -49,13 +49,13 @@ static void test_proxy_get_mtd_info_cmd(int fd)
     printf("  OK\n");
 }
 
-static void test_proxy_get_ring_info_cmd(int fd)
+static void test_proxy_get_shm_info_cmd(int fd)
 {
     int ret;
-    struct proxy_ring_info d;
-    printf("[TEST] PROXY_IOC_GET_RING_INFO\n");
+    struct proxy_shm_info d;
+    printf("[TEST] PROXY_IOC_GET_SHM_INFO\n");
 
-    ret = ioctl(fd, PROXY_IOC_GET_RING_INFO, &d);
+    ret = ioctl(fd, PROXY_IOC_GET_SHM_INFO, &d);
     if (ret < 0)
         printf("  FAIL: %s\n", strerror(errno));
     else
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
 	}
 
 	test_proxy_get_mtd_info_cmd(fd);
-	test_proxy_get_ring_info_cmd(fd);
+	test_proxy_get_shm_info_cmd(fd);
 	test_proxy_get_stats_info_cmd(fd);
 	test_unknown_ioctl(fd);
 

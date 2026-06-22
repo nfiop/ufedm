@@ -34,11 +34,11 @@ struct proxy_mtd_info {
 	__u32 reserved[6];		  /* reserved for future expansion */
 };
 
-struct proxy_ring_info {
-	__u32 ring_size;   /* size of each ring in bytes */
+struct proxy_shm_info {
+	__u32 packet_queue_size; /* size of each ring in bytes */
 	__u32 packet_size; /* Desired packet size to send/receive in a ring */
 	__u32 proto_ver; /* Protocol version for packet communication, should be
-			    0 for now */
+	   0 for now */
 	__u32 reserved[6]; /* reserved for future expansion */
 };
 
@@ -49,9 +49,30 @@ struct proxy_stats {
 	__u64 reserved[5]; /* reserved for future expansion */
 };
 
+struct proxy_ack {
+	__u64 seq_num; /* A sequence number to ACK */
+	/* Data region that is returned. For most cases should be equal
+	 * to the actual page data region size on the flash chip.
+	 */
+	__u32 retlen;
+	/* Data region that is returned. For most cases should be equal
+	 * to the actual page OOB region size on the flash chip.
+	 */
+	__u32 oob_retlen;
+};
+
+struct proxy_nack {
+	__u64 seq_num; /* A sequence number to NACK */
+	__u16 positive_errno;
+};
+
 /* ioctl commands */
-#define PROXY_IOC_GET_RING_INFO _IOR(PROXY_IOC_MAGIC, 0, struct proxy_ring_info)
+#define PROXY_IOC_GET_SHM_INFO _IOR(PROXY_IOC_MAGIC, 0, struct proxy_shm_info)
 #define PROXY_IOC_GET_STATS _IOR(PROXY_IOC_MAGIC, 1, struct proxy_stats)
 #define PROXY_IOC_GET_MTD_INFO _IOR(PROXY_IOC_MAGIC, 2, struct proxy_mtd_info)
+#define PROXY_IOC_ACK_WRITE _IOW(PROXY_IOC_MAGIC, 3, struct proxy_ack)
+#define PROXY_IOC_ACK_READ _IOW(PROXY_IOC_MAGIC, 4, struct proxy_ack)
+#define PROXY_IOC_NACK_WRITE _IOW(PROXY_IOC_MAGIC, 5, struct proxy_nack)
+#define PROXY_IOC_NACK_READ _IOW(PROXY_IOC_MAGIC, 6, struct proxy_nack)
 
 #endif

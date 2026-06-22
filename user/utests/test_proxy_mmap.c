@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 #include "proxy_dev.h"
-#include "shared_rings.h"
+#include "shared_mem.h"
 
 static void test_invalid_mmap_non_shared(int fd)
 {

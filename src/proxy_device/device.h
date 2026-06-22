@@ -14,7 +14,7 @@
 #include <linux/types.h>
 
 #include "proxy_ioctl.h"
-#include "shared_rings.h"
+#include "shared_mem.h"
 
 #define PROXY_DEVICE_NAME "ufedm_proxy"
 

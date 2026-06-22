@@ -15,7 +15,7 @@
 #include "proxy_device/class.h"
 #include "proxy_ioctl.h"
 
-#include "rb_packet.h"
+#include "shm_packet.h"
 
 static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 {
@@ -129,10 +129,10 @@ static long proxy_chrdev_ioctl(
 		ret = 0;
 		goto exit;
 	}
-	case PROXY_IOC_GET_RING_INFO: {
-		struct proxy_ring_info tmp;
-		tmp.ring_size = RING_SIZE;
-		tmp.packet_size = sizeof(struct ring_packet) +
+	case PROXY_IOC_GET_SHM_INFO: {
+		struct proxy_shm_info tmp;
+		tmp.packet_queue_size = PACKET_QUEUE_SIZE;
+		tmp.packet_size = sizeof(struct shm_packet) +
 				  backend->writesize + backend->oobsize;
 		tmp.proto_ver = 0;
 		memset(tmp.reserved, 0, sizeof(__u32) * 6);
