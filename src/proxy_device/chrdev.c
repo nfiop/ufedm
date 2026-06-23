@@ -162,6 +162,47 @@ static long proxy_chrdev_ioctl(
 		goto exit;
 	}
 
+	case PROXY_IOC_REGISTER_EVENTFD: {
+		struct proxy_register_eventfd tmp;
+		if (copy_from_user(&tmp, (int __user *)arg,
+			sizeof(struct proxy_register_eventfd)))
+			return -EFAULT;
+		struct protected_eventfd_ctx *ctx = NULL;
+		if (tmp.type == PROXY_EVENTFD_WRITE_BUFFER)
+			ctx = &prox_dev->write_efd;
+		if (tmp.type == PROXY_EVENTFD_READ_BUFFER)
+			ctx = &prox_dev->read_efd;
+
+		if (ctx == NULL) {
+			ret = -EINVAL;
+			goto exit;
+		}
+
+		ret = proxy_eventfd_ctx_register(ctx, tmp.fd);
+		goto exit;
+	}
+
+	case PROXY_IOC_UNREGISTER_EVENTFD: {
+		struct proxy_register_eventfd tmp;
+		if (copy_from_user(&tmp, (int __user *)arg,
+			sizeof(struct proxy_register_eventfd)))
+			return -EFAULT;
+		struct protected_eventfd_ctx *ctx = NULL;
+		if (tmp.type == PROXY_EVENTFD_WRITE_BUFFER)
+			ctx = &prox_dev->write_efd;
+		if (tmp.type == PROXY_EVENTFD_READ_BUFFER)
+			ctx = &prox_dev->read_efd;
+
+		if (ctx == NULL) {
+			ret = -EINVAL;
+			goto exit;
+		}
+
+		proxy_eventfd_ctx_unregister(ctx);
+		ret = 0;
+		goto exit;
+	}
+
 	default:
 		ret = -EINVAL;
 		goto exit;

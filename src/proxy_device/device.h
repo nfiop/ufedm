@@ -16,6 +16,8 @@
 #include "proxy_ioctl.h"
 #include "shared_mem.h"
 
+#include "proxy_device/eventfd.h"
+
 #define PROXY_DEVICE_NAME "ufedm_proxy"
 
 struct ufedm_proxy_device {
@@ -47,6 +49,9 @@ struct ufedm_proxy_device {
 	struct mutex shmem_lock;
 	struct file *shmem_file;
 	bool shmem_revoked;
+
+	struct protected_eventfd_ctx read_efd;
+	struct protected_eventfd_ctx write_efd;
 };
 
 int proxy_device_create(struct ufedm_proxy_device *dev);

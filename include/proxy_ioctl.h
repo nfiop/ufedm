@@ -19,6 +19,12 @@
 /* Magic number for ioctl commands */
 #define PROXY_IOC_MAGIC 'P'
 
+/* Types for eventfd registration/unregistration */
+#define PROXY_EVENTFD_WRITE_BUFFER 1
+#define PROXY_EVENTFD_READ_BUFFER 2
+
+/* Struct definitions for ioctl ops */
+
 struct proxy_mtd_info {
 	__u32 backend_mtd_index;
 	__u16 flash_page_size; /* Should be the entire page size of a NAND flash
@@ -66,6 +72,15 @@ struct proxy_nack {
 	__u16 positive_errno;
 };
 
+struct proxy_register_eventfd {
+	__u8 type;
+	int fd;
+};
+
+struct proxy_unregister_eventfd {
+	__u8 type;
+};
+
 /* ioctl commands */
 #define PROXY_IOC_GET_SHM_INFO _IOR(PROXY_IOC_MAGIC, 0, struct proxy_shm_info)
 #define PROXY_IOC_GET_STATS _IOR(PROXY_IOC_MAGIC, 1, struct proxy_stats)
@@ -74,5 +89,9 @@ struct proxy_nack {
 #define PROXY_IOC_ACK_READ _IOW(PROXY_IOC_MAGIC, 4, struct proxy_ack)
 #define PROXY_IOC_NACK_WRITE _IOW(PROXY_IOC_MAGIC, 5, struct proxy_nack)
 #define PROXY_IOC_NACK_READ _IOW(PROXY_IOC_MAGIC, 6, struct proxy_nack)
+#define PROXY_IOC_REGISTER_EVENTFD                                             \
+	_IOW(PROXY_IOC_MAGIC, 7, struct proxy_register_eventfd)
+#define PROXY_IOC_UNREGISTER_EVENTFD                                           \
+	_IOW(PROXY_IOC_MAGIC, 8, struct proxy_unregister_eventfd)
 
 #endif
