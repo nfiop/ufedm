@@ -183,9 +183,9 @@ static long proxy_chrdev_ioctl(
 	}
 
 	case PROXY_IOC_UNREGISTER_EVENTFD: {
-		struct proxy_register_eventfd tmp;
+		struct proxy_unregister_eventfd tmp;
 		if (copy_from_user(&tmp, (int __user *)arg,
-			sizeof(struct proxy_register_eventfd)))
+			sizeof(struct proxy_unregister_eventfd)))
 			return -EFAULT;
 		struct protected_eventfd_ctx *ctx = NULL;
 		if (tmp.type == PROXY_EVENTFD_WRITE_BUFFER)
