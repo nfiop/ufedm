@@ -52,5 +52,7 @@ struct ufedm_proxy_device {
 
 int proxy_device_create(struct ufedm_proxy_device *dev);
 void proxy_device_destroy(struct ufedm_proxy_device *dev);
+void proxy_device_fill_shm_info(
+    struct ufedm_proxy_device *dev, struct proxy_shm_info *p);
 
 #endif

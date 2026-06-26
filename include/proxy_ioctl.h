@@ -8,6 +8,7 @@
 #define PROXY_IOCTL_H
 
 #include "defs.h"
+#include "shared_mem.h"
 
 // Detect whether we are compiling in the kernel or userspace
 #ifdef __KERNEL__
@@ -38,14 +39,6 @@ struct proxy_mtd_info {
 					  // also as eraseblock)
 	__u32 flash_erase_sector_size;	  // Size of erase sector
 	__u32 reserved[6];		  /* reserved for future expansion */
-};
-
-struct proxy_shm_info {
-	__u32 packet_queue_size; /* size of each ring in bytes */
-	__u32 packet_size; /* Desired packet size to send/receive in a ring */
-	__u32 proto_ver; /* Protocol version for packet communication, should be
-	   0 for now */
-	__u32 reserved[6]; /* reserved for future expansion */
 };
 
 struct proxy_stats {

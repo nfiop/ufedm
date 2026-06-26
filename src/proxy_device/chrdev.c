@@ -56,10 +56,17 @@ static int proxy_chrdev_release(struct inode *inode, struct file *filp)
 static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	int ret;
+	struct proxy_shm_info info;
 	struct ufedm_proxy_device *dev = filp->private_data;
 	u64 offset = (u64)vma->vm_pgoff << PAGE_SHIFT;
 	u64 len = vma->vm_end - vma->vm_start;
-	u64 max_size = PAGE_ALIGN(sizeof(struct shared_region));
+
+	/* Doing this is a bit unfortunate, but there's no better way than
+	 * getting the entire struct for now.
+	 */
+	proxy_device_fill_shm_info(dev, &info);
+
+	u64 max_size = PAGE_ALIGN(get_shm_region_size(&info));
 
 	if (offset + len > max_size) {
 		pr_warn_ratelimited("ufedm_proxy: failed to mmap, (off %llu + "
@@ -127,11 +134,7 @@ static long proxy_chrdev_ioctl(
 	}
 	case PROXY_IOC_GET_SHM_INFO: {
 		struct proxy_shm_info tmp;
-		tmp.packet_queue_size = PACKET_QUEUE_SIZE;
-		tmp.packet_size = sizeof(struct shm_packet) +
-				  backend->writesize + backend->oobsize;
-		tmp.proto_ver = 0;
-		memset(tmp.reserved, 0, sizeof(__u32) * 6);
+		proxy_device_fill_shm_info(prox_dev, &tmp);
 		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp))) {
 			ret = -EFAULT;
 			goto exit;

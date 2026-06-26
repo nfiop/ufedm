@@ -7,14 +7,15 @@
 #include <unistd.h>
 
 #include "proxy_dev.h"
+#include "proxy_ioctl.h"
 #include "shared_mem.h"
 
-static void test_invalid_mmap_non_shared(int fd)
+static void test_invalid_mmap_non_shared(int fd, size_t shm_region_size)
 {
 	printf("[TEST] INVALID MMAP with MAP_PRIVATE (expect NULL)\n");
 
-	void *map = mmap(NULL, sizeof(struct shared_region),
-	    PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+	void *map = mmap(
+	    NULL, shm_region_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
 
 	if (map == MAP_FAILED) {
 		printf("  OK (expected failure)\n");
@@ -23,12 +24,14 @@ static void test_invalid_mmap_non_shared(int fd)
 	}
 }
 
-static void test_invalid_mmap_size(int fd)
+static void test_invalid_mmap_size(int fd, size_t shm_region_size)
 {
 	printf("[TEST] INVALID MMAP with invalid size (expect NULL)\n");
+	printf("Shared memory region size is %u, testing with %u\n", shm_region_size,
+		shm_region_size * 16);
 
-	void *map = mmap(NULL, sizeof(struct shared_region) * 2,
-	    PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	void *map = mmap(NULL, shm_region_size * 16, PROT_READ | PROT_WRITE,
+	    MAP_SHARED, fd, 0);
 
 	if (map == MAP_FAILED) {
 		printf("  OK (expected failure), errno=%d (%s)\n", errno,
@@ -38,16 +41,16 @@ static void test_invalid_mmap_size(int fd)
 	}
 }
 
-static void test_valid_mmap(int fd)
+static void test_valid_mmap(int fd, size_t shm_region_size)
 {
 	printf("[TEST] VALID MMAP\n");
 
-	void *map = mmap(NULL, sizeof(struct shared_region),
-	    PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	void *map = mmap(
+	    NULL, shm_region_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
 	if (map != MAP_FAILED) {
 		printf("  OK (expected success)\n");
-		munmap(map, sizeof(struct shared_region));
+		munmap(map, shm_region_size);
 	} else {
 		printf("  FAIL: unexpected failure\n");
 	}
@@ -55,7 +58,10 @@ static void test_valid_mmap(int fd)
 
 int main(int argc, char **argv)
 {
+	int ret;
 	int fd;
+	size_t shm_region_size;
+	struct proxy_shm_info shm_info;
 
 	if (argc != 2) {
 		fprintf(stderr, "Usage: %s <index>\n", argv[0]);
@@ -67,9 +73,18 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	test_invalid_mmap_non_shared(fd);
-	test_invalid_mmap_size(fd);
-	test_valid_mmap(fd);
+	ret = ioctl(fd, PROXY_IOC_GET_SHM_INFO, &shm_info);
+	if (ret < 0) {
+		fprintf(stderr, "PROXY_IOC_GET_SHM_INFO ioctl failed: %s\n",
+		    strerror(errno));
+		return 1;
+	}
+
+	shm_region_size = get_shm_region_size(&shm_info);
+
+	test_invalid_mmap_non_shared(fd, shm_region_size);
+	test_invalid_mmap_size(fd, shm_region_size);
+	test_valid_mmap(fd, shm_region_size);
 
 	close(fd);
 	return 0;

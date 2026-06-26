@@ -10,6 +10,8 @@
 // system. It can be easily changed if so desired.
 #define PROXY_MAX_DEVICE_COUNT 32
 
+#define PROXY_PACKETS_COUNT_PER_QUEUE 20
+
 // Detect whether we are compiling in the kernel or userspace
 #ifdef __KERNEL__
 #include <linux/types.h> /* __u32, __u64 */
