@@ -33,19 +33,39 @@ static int ensure_safe_environment(struct mtd_info *mtd, struct mtd_oob_ops *ops
 	if (mtd->priv == NULL)
 		return -EIO;
 
-	if (ops->mode == MTD_OPS_RAW) {
-		/* RAW mode is dangerous and eliminates 
-		 * any safe guard of this module. Don't allow it, the
-		 * user can just use the backing MTD device in RAW mode.
-		 * This should prevent a disaster waiting from happening due
-		 * malfunctioning filesystem or userspace program.
-		 *
-		 * And yes, I know this can be a read function we validate, but goddammit
-		 * if someone wants to use this in RAW mode, this is still invalid.
-		*/
-		pr_warn_ratelimited("%s: RAW mode access is denied by this device.\n", mtd->name);
+	/* RAW mode is dangerous and eliminates
+	 * any safe guard of this module. Don't allow it, the
+	 * user can just use the backing MTD device in RAW mode.
+	 * This should prevent a disaster waiting from happening due
+	 * malfunctioning filesystem or userspace program.
+	 *
+	 * And yes, I know this can be a read function we validate, but
+	 * goddammit if someone wants to use this in RAW mode, this is still
+	 * invalid.
+	 *
+	 * PLACE_OOB mode is dangerous as well. It is less dangerous than
+	 * RAW mode, because the user still relies on our driver to put
+	 * ECC & other important metadata on the NAND flash chip, but it
+	 * can do quite a bit of damage if used improperly.
+	 *
+	 * Besides that, ChatGPT says that PLACE_OOB mode is used by
+	 * bootloaders and raw flash writers to sometimes write a specific
+	 * bad block markers or put boot metadata at specific OOB offsets.
+	 * However, the entire point of this module is to give userspace
+	 * the possibility of intervention with ECC & layout to essentially
+	 * implement a raw flash writer/reader, based on a known & managed
+	 * policy and not allowing random userspace programs to do whatever
+	 * they want in that regard.
+	 *
+	 * If the user needs to do this anyway, they can probably just open
+	 * the _original_ backing MTD device and invoke their program on it.
+	 */
+	if (ops->mode != MTD_OPS_AUTO_OOB) {
+		pr_warn_ratelimited("%s: Only MTD_OPS_AUTO_OOB mode access is "
+				    "allowed by this device.\n",
+		    mtd->name);
 		return -EOPNOTSUPP;
-    }
+	}
 
 	*dev_ptr = mtd->priv;
 
