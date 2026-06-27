@@ -13,18 +13,6 @@
 
 #include "proxy_device/chrdev.h"
 
-void proxy_device_fill_shm_info(
-    struct ufedm_proxy_device *dev, struct proxy_shm_info *p)
-{
-	p->proto_ver = 0;
-	p->bitmap_bits_cnt = PROXY_PACKETS_COUNT_PER_QUEUE;
-	p->packet_size = sizeof(struct shm_packet) +
-			 dev->backend_dev->writesize +
-			 dev->backend_dev->oobsize;
-	p->packet_queues_cnt = 2;
-	memset(p->reserved, 0, sizeof(__u32) * 6);
-}
-
 static void revoke_shmem_mapping(struct ufedm_proxy_device *dev)
 {
 	mutex_lock(&dev->shmem_lock);
@@ -42,14 +30,8 @@ static void revoke_shmem_mapping(struct ufedm_proxy_device *dev)
 
 static int create_shmem_mapping(struct ufedm_proxy_device *dev)
 {
-	struct proxy_shm_info info;
-	/* Doing this is a bit unfortunate, but there's no better way than
-	 * getting the entire struct for now.
-	 */
-	proxy_device_fill_shm_info(dev, &info);
-
 	dev->shmem_file = shmem_kernel_file_setup(
-	    "ufedm_ringbuffer", PAGE_ALIGN(get_shm_region_size(&info)), 0);
+	    "ufedm_ringbuffer", PAGE_ALIGN(get_shm_region_size(&dev->info)), 0);
 
 	if (IS_ERR(dev->shmem_file))
 		return PTR_ERR(dev->shmem_file);

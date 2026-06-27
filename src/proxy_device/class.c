@@ -30,6 +30,18 @@ struct ufedm_proxy_device *proxy_device_resolve_by_minor(size_t minor)
 	return &s_all_devs.dev_arr[minor];
 }
 
+static void proxy_device_fill_shm_info(
+    struct ufedm_proxy_device *dev, struct proxy_shm_info *p)
+{
+	p->proto_ver = 0;
+	p->bitmap_bits_cnt = PROXY_PACKETS_COUNT_PER_QUEUE;
+	p->packet_size = sizeof(struct shm_packet) +
+			 dev->backend_dev->writesize +
+			 dev->backend_dev->oobsize;
+	p->packet_queues_cnt = 2;
+	memset(p->reserved, 0, sizeof(__u32) * 6);
+}
+
 static void remove_devices(struct prox_dev_class *devs, int max_idx)
 {
 	for (int idx = 0; idx < max_idx; idx++) {
@@ -65,6 +77,8 @@ static int add_devices(struct prox_dev_class *devs, int *max_idx)
 		dev->backend_dev = backing_mtd;
 		dev->devno = MKDEV(major, *max_idx);
 		dev->device_class = devs->device_class;
+
+		proxy_device_fill_shm_info(dev, &dev->info);
 
 		ret = proxy_device_create(dev);
 		if (ret != 0)

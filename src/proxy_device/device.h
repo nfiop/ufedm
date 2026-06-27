@@ -46,13 +46,16 @@ struct ufedm_proxy_device {
 	struct file *shmem_file;
 	bool shmem_revoked;
 
+	/* Used for ioctls and I/O requests - should not change once was
+	 * set by the init path.
+	 */
+	struct proxy_shm_info info;
+
 	struct protected_eventfd_ctx read_efd;
 	struct protected_eventfd_ctx write_efd;
 };
 
 int proxy_device_create(struct ufedm_proxy_device *dev);
 void proxy_device_destroy(struct ufedm_proxy_device *dev);
-void proxy_device_fill_shm_info(
-    struct ufedm_proxy_device *dev, struct proxy_shm_info *p);
 
 #endif
