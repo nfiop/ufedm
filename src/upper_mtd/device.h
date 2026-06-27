@@ -19,8 +19,7 @@ struct upper_mtd_device {
 	struct ufedm_proxy_device* proxy_dev;
 };
 
-int upper_mtd_initialize_devices(uint *mtd_minors_list, size_t count);
-void print_upper_to_backend_mtd_mapping(void);
-void upper_mtd_destroy_devices(void);
+int upper_mtd_initialize_devices(size_t count);
+void upper_mtd_destroy_devices(size_t count);
 
 #endif

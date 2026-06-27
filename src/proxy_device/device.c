@@ -48,6 +48,7 @@ static void destroy_shmem_mapping(struct ufedm_proxy_device *dev)
 int proxy_device_create(struct ufedm_proxy_device *dev)
 {
 	int ret;
+
 	ret = create_shmem_mapping(dev);
 	if (ret)
 		goto error_create_shmem_mapping;
@@ -80,17 +81,9 @@ error_create_shmem_mapping:
 
 void proxy_device_destroy(struct ufedm_proxy_device *dev)
 {
-	struct mtd_info *backend_dev;
-
-	mutex_lock(&dev->backend_lock);
-	backend_dev = dev->backend_dev;
-
-	dev->backend_dev = NULL;
-
-	if (backend_dev != NULL)
-		put_mtd_device(backend_dev);
-
-	mutex_unlock(&dev->backend_lock);
+	// We don't drop a refcount to the backend_dev pointer of a backing
+	// MTD device here, we allow the module to do this later on during
+	// removal.
 
 	device_destroy(dev->device_class, dev->devno);
 	proxy_chrdev_destory(dev);

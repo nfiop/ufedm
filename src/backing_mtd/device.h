@@ -9,7 +9,8 @@
 #include <linux/mtd/mtd.h>
 #include <linux/types.h>
 
-int open_backend_mtd_device(struct mtd_info **mtd_ptr_in_list, uint mtd_index);
-void put_backend_mtd_devices(struct mtd_info **mtd_list, size_t max_index);
+int locate_all_backend_mtds(uint *mtd_minors_list, size_t count);
+struct mtd_info *get_backend_mtd_device(uint index);
+void put_backend_mtd_devices(size_t count);
 
 #endif

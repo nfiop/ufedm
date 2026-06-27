@@ -9,14 +9,12 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 
+#include "backing_mtd/device.h"
 #include "proxy_device/class.h"
 #include "proxy_device/device.h"
-#include "upper_mtd/backend.h"
 #include "upper_mtd/device.h"
 
-static struct mtd_info **s_backend_mtds;
 static struct upper_mtd_device *s_upper_mtds;
-static size_t s_mtds_count = 0;
 
 static int upper_erase(struct mtd_info *mtd, struct erase_info *instr)
 {
@@ -115,6 +113,11 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 		return -ENOMEM;
 	}
 
+	dev->backend = backend;
+	if (dev->backend == NULL) {
+		return -EINVAL;
+	}
+
 	/* Basic identity */
 	dev->upper->name = "upper-mtd";
 	dev->upper->type = backend->type;
@@ -156,8 +159,7 @@ static void destroy_devices(struct upper_mtd_device *devs, size_t max_index)
 		destroy_device(&devs[idx]);
 }
 
-static int create_upper_devices(
-    struct upper_mtd_device *devs, struct mtd_info **backends, size_t count)
+static int create_upper_devices(struct upper_mtd_device *devs, size_t count)
 {
 	size_t i;
 	int ret;
@@ -172,24 +174,12 @@ static int create_upper_devices(
 		if (!proxy_dev)
 			goto error_create_device;
 
-		ret = create_device(&devs[i], backends[i], proxy_dev);
+		// We send a `get_backend_mtd_device(i)` and rely on the fact
+		// that function will check if it's a NULL pointer.
+		ret = create_device(
+		    &devs[i], get_backend_mtd_device(i), proxy_dev);
 		if (ret != 0)
 			goto error_create_device;
-		devs[i].backend = backends[i];
-
-		// Increase the refcount on a backing MTD device now.
-		// It will be released upon removal of the module
-		// when we remove the proxy devices.
-
-		// FIXME: This is ugly, we already have a pointer,
-		// do we really need to do this?
-		get_mtd_device(NULL, backends[i]->index);
-
-		mutex_lock(&proxy_dev->backend_lock);
-		// Connect a backing MTD device to the corresponding proxy
-		// device so it can do full I/O work.
-		proxy_dev->backend_dev = backends[i];
-		mutex_unlock(&proxy_dev->backend_lock);
 	}
 
 	return 0;
@@ -199,72 +189,17 @@ error_create_device:
 	return ret;
 }
 
-static int attach_backend_mtd_devices(
-    struct mtd_info **mtd_list, uint *mtd_indices_list, size_t count)
+int upper_mtd_initialize_devices(size_t count)
 {
-	int ret;
-	size_t i;
-
-	WARN_ON(count == 0);
-
-	for (i = 0; i < count; i++) {
-		ret =
-		    open_backend_mtd_device(&mtd_list[i], mtd_indices_list[i]);
-		if (ret != 0)
-			goto error_open_mtd_device;
-	}
-
-	return 0;
-
-error_open_mtd_device:
-	put_backend_mtd_devices(mtd_list, i);
-	return ret;
-}
-
-int upper_mtd_initialize_devices(uint *mtd_indices_list, size_t count)
-{
-	int ret;
-
-	s_backend_mtds =
-	    kvzalloc(sizeof(struct mtd_info *) * count, GFP_KERNEL);
-	if (!s_backend_mtds) {
-		return -ENOMEM;
-	};
-
 	s_upper_mtds = kvzalloc(sizeof(struct mtd_info) * count, GFP_KERNEL);
 	if (!s_upper_mtds) {
 		return -ENOMEM;
 	};
 
-	s_mtds_count = count;
-	ret = attach_backend_mtd_devices(
-	    s_backend_mtds, mtd_indices_list, s_mtds_count);
-	if (ret != 0)
-		goto error_attach_backend_mtd_devices;
-
-	ret = create_upper_devices(s_upper_mtds, s_backend_mtds, s_mtds_count);
-	if (ret != 0)
-		goto error_create_upper_devices;
-
-	return 0;
-
-error_create_upper_devices:
-	put_backend_mtd_devices(s_backend_mtds, s_mtds_count);
-error_attach_backend_mtd_devices:
-	return ret;
+	return create_upper_devices(s_upper_mtds, count);
 }
 
-void print_upper_to_backend_mtd_mapping(void)
+void upper_mtd_destroy_devices(size_t count)
 {
-	for (size_t i = 0; i < s_mtds_count; i++) {
-		struct mtd_info *mtd = s_backend_mtds[i];
-		pr_info("ufedm: upper mtd%d -> (backend %d, %s)\n", i,
-		    mtd->index, mtd->name);
-	}
-}
-
-void upper_mtd_destroy_devices(void)
-{
-	destroy_devices(s_upper_mtds, s_mtds_count);
-	put_backend_mtd_devices(s_backend_mtds, s_mtds_count);
+	destroy_devices(s_upper_mtds, count);
 }

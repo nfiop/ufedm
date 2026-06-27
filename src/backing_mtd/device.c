@@ -9,9 +9,21 @@
 #include <linux/mtd/rawnand.h>
 #include <linux/mtd/spinand.h>
 
-#include "upper_mtd/backend.h"
+#include "backing_mtd/device.h"
 
-int open_backend_mtd_device(struct mtd_info **mtd_ptr_in_list, uint mtd_index)
+static struct mtd_info **s_backend_mtds;
+extern size_t g_mtds_count;
+
+struct mtd_info *get_backend_mtd_device(uint index)
+{
+	if (index >= g_mtds_count)
+		return NULL;
+
+	return s_backend_mtds[index];
+}
+
+static int open_backend_mtd_device(
+    struct mtd_info **mtd_ptr_in_list, uint mtd_index)
 {
 	struct nand_device *nanddev;
 	*mtd_ptr_in_list = get_mtd_device(NULL, mtd_index);
@@ -67,8 +79,47 @@ int open_backend_mtd_device(struct mtd_info **mtd_ptr_in_list, uint mtd_index)
 	return 0;
 }
 
-void put_backend_mtd_devices(struct mtd_info **mtd_list, size_t max_index)
+static void __put_backend_mtd_devices(
+    struct mtd_info **mtd_list, size_t max_index)
 {
 	for (size_t i = 0; i < max_index; i++)
 		put_mtd_device(mtd_list[i]);
+}
+
+static int attach_backend_mtd_devices(
+    struct mtd_info **mtd_list, uint *mtd_minors_list, size_t count)
+{
+	int ret;
+	size_t i;
+
+	WARN_ON(count == 0);
+
+	for (i = 0; i < count; i++) {
+		ret = open_backend_mtd_device(&mtd_list[i], mtd_minors_list[i]);
+		if (ret != 0)
+			goto error_open_mtd_device;
+	}
+
+	return 0;
+
+error_open_mtd_device:
+	__put_backend_mtd_devices(mtd_list, i);
+	return ret;
+}
+
+int locate_all_backend_mtds(uint *mtd_minors_list, size_t count)
+{
+	s_backend_mtds =
+	    kvzalloc(sizeof(struct mtd_info *) * count, GFP_KERNEL);
+	if (!s_backend_mtds) {
+		return -ENOMEM;
+	};
+
+	return attach_backend_mtd_devices(
+	    s_backend_mtds, mtd_minors_list, count);
+}
+
+void put_backend_mtd_devices(size_t count)
+{
+	__put_backend_mtd_devices(s_backend_mtds, count);
 }

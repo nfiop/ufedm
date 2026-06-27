@@ -6,6 +6,6 @@ ufedm-y := src/init.o \
            src/proxy_device/device.o \
            src/proxy_device/eventfd.o \
            src/upper_mtd/device.o \
-           src/upper_mtd/backend.o
+           src/backing_mtd/device.o
 
 ccflags-y += -I$(src)/include -I$(src)/src

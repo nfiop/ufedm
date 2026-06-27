@@ -30,15 +30,11 @@ struct ufedm_proxy_device {
 	atomic_t already_open;
 
 	/* This is a pointer to the backing MTD device
-	 * and not our own made-up device. This ensures
-	 * that upon removal of the module, we always
-	 * have a valid pointer in this struct.
-	 * We ensure this by holding a refcount on it as well.
-	 * NOTE: This pointer should be protected by backend_lock mutex
-	 * for any case of accessing it.
+	 * and not our own made-up device. This was protected by a mutex
+	 * but after some architectural changes, we ensure we have a valid
+	 * pointer upon creation of this device so we don't need it anymore.
 	 */
 	struct mtd_info *backend_dev;
-	struct mutex backend_lock;
 
 	struct proxy_stats stats;
 

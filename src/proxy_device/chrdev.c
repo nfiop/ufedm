@@ -105,18 +105,14 @@ static long proxy_chrdev_ioctl(
     struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int ret;
-	struct mtd_info *backend;
 	struct ufedm_proxy_device *prox_dev = filp->private_data;
+	struct mtd_info *backend;
 
 	WARN_ON(prox_dev == NULL);
 	if (prox_dev == NULL)
 		return -EIO;
 
-	mutex_lock(&prox_dev->backend_lock);
-
 	backend = prox_dev->backend_dev;
-	if (!backend)
-		return -EAGAIN;
 
 	switch (cmd) {
 	case PROXY_IOC_GET_STATS: {
@@ -209,7 +205,6 @@ static long proxy_chrdev_ioctl(
 	}
 
 exit:
-	mutex_unlock(&prox_dev->backend_lock);
 	return ret;
 }
 

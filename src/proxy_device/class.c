@@ -6,6 +6,7 @@
 #include <linux/cdev.h>
 #include <linux/fs.h>
 
+#include "backing_mtd/device.h"
 #include "defs.h"
 #include "proxy_device/class.h"
 
@@ -40,13 +41,31 @@ static int add_devices(struct prox_dev_class *devs, int *max_idx)
 {
 	int major;
 	int ret;
+	struct mtd_info *backing_mtd;
 
 	*max_idx = 0;
 	major = MAJOR(devs->devno);
 	for (; *max_idx < devs->count; ++*max_idx) {
+		// Find a backing MTD device to the corresponding proxy
+		// device so it can do full I/O work.
+		// If we fail here, it's probably a bug - log it and don't
+		// continue.
+		//
+		// We don't manage the refcount of the backing MTD device here!
+		// Instead, we get a refcount when getting a struct mtd_info
+		// for the backing MTD device beforehand, and during removal
+		// of the module we put the refcount.
+		backing_mtd = get_backend_mtd_device(*max_idx);
+		WARN_ON(backing_mtd == NULL);
+		if (backing_mtd == NULL) {
+			return -EINVAL;
+		}
+
 		struct ufedm_proxy_device *dev = &devs->dev_arr[*max_idx];
+		dev->backend_dev = backing_mtd;
 		dev->devno = MKDEV(major, *max_idx);
 		dev->device_class = devs->device_class;
+
 		ret = proxy_device_create(dev);
 		if (ret != 0)
 			return ret;
