@@ -81,7 +81,7 @@ static void test_proxy_eventfd_register_unregister(int fd)
 {
 	int ret;
 
-	printf("[TEST] EVENT FD REGISTER IOCTL (expect -EINVAL)\n");
+	printf("[TEST] EVENT FD REGISTER IOCTLs\n");
 
 	int read_efd = eventfd(0, 0);
 	if (read_efd < 0) {
