@@ -58,13 +58,15 @@
  * with an errno to be sent back to the upper layer.
  */
 
+typedef __u64 seq_num_t;
+
 struct shm_pkt_hdr {
 	/* This is a published kernel sequence number, userspace should
 	 * not touch it - it should modify the data as needed, and send
 	 * an ACK ioctl based on the provided seq_num when it's done
 	 * processing.
 	 */
-	__u64 seq_num;
+	seq_num_t seq_num;
 
 	/* These values specify the amount of data and OOB being
 	 * posted by the kernel to process.
