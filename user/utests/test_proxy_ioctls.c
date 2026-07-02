@@ -13,42 +13,42 @@
 
 static int __test_proxy_get_mtd_info_cmd(int fd)
 {
-    int ret;
-    struct proxy_mtd_info d;
+	int ret;
+	struct proxy_mtd_info d;
 
-    ret = ioctl(fd, PROXY_IOC_GET_MTD_INFO, &d);
-    if (ret < 0)
-        return -errno;
-    return 0;
+	ret = ioctl(fd, PROXY_IOC_GET_MTD_INFO, &d);
+	if (ret < 0)
+		return -errno;
+	return 0;
 }
 
 static void test_proxy_get_mtd_info_cmd(int fd)
 {
-    int ret;
-    int retries = 0;
+	int ret;
+	int retries = 0;
 
-    printf("[TEST] PROXY_IOC_GET_MTD_INFO\n");
+	printf("[TEST] PROXY_IOC_GET_MTD_INFO\n");
 
-    while (1) {
-        ret = __test_proxy_get_mtd_info_cmd(fd);
+	while (1) {
+		ret = __test_proxy_get_mtd_info_cmd(fd);
 
-        if (ret == 0)
-            break;
+		if (ret == 0)
+			break;
 
-        if (ret != -EAGAIN) {
-            printf("  FAIL: %s\n", strerror(-ret));
-            return;
-        }
+		if (ret != -EAGAIN) {
+			printf("  FAIL: %s\n", strerror(-ret));
+			return;
+		}
 
-        if (++retries > 1000) {
-            printf("  FAIL: too many retries\n");
-            return;
-        }
+		if (++retries > 1000) {
+			printf("  FAIL: too many retries\n");
+			return;
+		}
 
-        usleep(1000); // 1ms
-    }
+		usleep(1000); // 1ms
+	}
 
-    printf("  OK\n");
+	printf("  OK\n");
 }
 
 static void test_proxy_get_shm_info_cmd(int fd)
@@ -66,15 +66,15 @@ static void test_proxy_get_shm_info_cmd(int fd)
 
 static void test_proxy_get_stats_info_cmd(int fd)
 {
-    int ret;
-    struct proxy_stats d;
+	int ret;
+	struct proxy_stats d;
 
-    printf("[TEST] PROXY_IOC_GET_STATS\n");
-    ret = ioctl(fd, PROXY_IOC_GET_STATS, &d);
-    if (ret < 0)
-        printf("  FAIL: %s\n", strerror(errno));
-    else
-        printf("  OK\n");
+	printf("[TEST] PROXY_IOC_GET_STATS\n");
+	ret = ioctl(fd, PROXY_IOC_GET_STATS, &d);
+	if (ret < 0)
+		printf("  FAIL: %s\n", strerror(errno));
+	else
+		printf("  OK\n");
 }
 
 static void test_proxy_eventfd_register_unregister(int fd)
@@ -147,16 +147,16 @@ static void test_proxy_eventfd_register_unregister(int fd)
 
 static void test_unknown_ioctl(int fd)
 {
-    int ret;
-    printf("[TEST] INVALID IOCTL (expect -EINVAL)\n");
+	int ret;
+	printf("[TEST] INVALID IOCTL (expect -EINVAL)\n");
 
-    struct proxy_stats d;
+	struct proxy_stats d;
 
-    ret = ioctl(fd, 0xdeadbeef, &d);
-    if (ret < 0)
-        printf("  OK (expected failure): %s\n", strerror(errno));
-    else
-        printf("  FAIL: unexpected success\n");
+	ret = ioctl(fd, 0xdeadbeef, &d);
+	if (ret < 0)
+		printf("  OK (expected failure): %s\n", strerror(errno));
+	else
+		printf("  FAIL: unexpected success\n");
 }
 
 int main(int argc, char **argv)
