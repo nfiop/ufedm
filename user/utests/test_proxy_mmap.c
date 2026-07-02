@@ -27,8 +27,8 @@ static void test_invalid_mmap_non_shared(int fd, size_t shm_region_size)
 static void test_invalid_mmap_size(int fd, size_t shm_region_size)
 {
 	printf("[TEST] INVALID MMAP with invalid size (expect NULL)\n");
-	printf("Shared memory region size is %u, testing with %u\n", shm_region_size,
-		shm_region_size * 16);
+	printf("Shared memory region size is %zu, testing with %zu\n",
+	    shm_region_size, shm_region_size * 16);
 
 	void *map = mmap(NULL, shm_region_size * 16, PROT_READ | PROT_WRITE,
 	    MAP_SHARED, fd, 0);

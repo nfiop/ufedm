@@ -55,7 +55,7 @@ static void print_upper_to_backend_mtd_mapping(void)
 	for (size_t i = 0; i < g_mtds_count; i++) {
 		struct mtd_info *mtd = get_backend_mtd_device(i);
 		BUG_ON(mtd == NULL);
-		pr_info("ufedm: upper mtd%d -> (backend %d, %s)\n", i,
+		pr_info("ufedm: upper mtd%zu -> (backend %d, %s)\n", i,
 		    mtd->index, mtd->name);
 	}
 }
