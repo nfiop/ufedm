@@ -1,71 +1,83 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# -----------------------------
-# Project root
-# -----------------------------
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# -----------------------------
-# Buildroot path (edit default or override via env)
-# -----------------------------
-BUILDROOT_DIR="${BUILDROOT_DIR:-}"
-
-if [ -z "$BUILDROOT_DIR" ]; then
-    echo "ERROR: BUILDROOT_DIR not set"
-    echo "Usage: BUILDROOT_DIR=/path/to/buildroot ./build.sh"
-    exit 1
-fi
-
-if [ -z "$KERNEL_ARCH" ]; then
-    echo "ERROR: KERNEL_ARCH not set"
-    echo "Set KERNEL_ARCH to arm/amd64/riscv ..."
-    exit 1
-fi
-
-TOOLCHAIN_FILE="$BUILDROOT_DIR/output/host/share/buildroot/toolchainfile.cmake"
-
-if [ ! -f "$TOOLCHAIN_FILE" ]; then
-    echo "ERROR: toolchain file not found:"
-    echo "  $TOOLCHAIN_FILE"
-    exit 1
-fi
-
-# -----------------------------
-# Build directory
-# -----------------------------
 BUILD_DIR="$ROOT_DIR/build"
 
-# Optional: clean build
-if [ "$1" == "clean" ]; then
-    echo "Cleaning build directory..."
+BUILDROOT_DIR=""
+
+clean() {
+    echo "==> Cleaning build directory: $BUILD_DIR"
+    rm -rf "$BUILD_DIR"
+    echo "==> Clean complete"
+}
+
+usage() {
+    cat <<EOF
+Usage:
+
+  Native build (host kernel + host compiler):
+    ./build.sh
+
+  Buildroot build (cross-compile kernel module):
+    ./build.sh --buildroot /path/to/buildroot
+
+Optional commands:
+
+  clean   Remove build directory
+    ./build.sh clean
+
+Examples:
+
+  # Native build
+  ./build.sh
+
+  # Buildroot ARM build
+  ./build.sh --buildroot /opt/arm-buildroot
+
+  # Clean build
+  ./build.sh clean
+
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --buildroot)
+            BUILDROOT_DIR="$2"
+            shift 2
+            ;;
+        clean)
+            clean
+            exit 0
+            ;;
+        -h)
+            usage
+            exit 0
+            ;;
+        --help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            exit 1
+            ;;
+    esac
+done
+
+if [[ "${1:-}" == "clean" ]]; then
     rm -rf "$BUILD_DIR"
     shift
 fi
 
-# -----------------------------
-# Configure (only once or if missing)
-# -----------------------------
-if [ ! -f "$BUILD_DIR/Makefile" ]; then
-    echo "Configuring CMake..."
+echo "==> Configuring"
 
-    cmake -B "$BUILD_DIR" \
-        -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_FILE" \
-        -DBUILDROOT_DIR="$BUILDROOT_DIR" -DKERNEL_ARCH="$KERNEL_ARCH" \
-        "$ROOT_DIR"
-fi
+cmake -B "$BUILD_DIR" \
+    -DBUILDROOT_DIR="${BUILDROOT_DIR:-}" \
+    "$ROOT_DIR"
 
-# -----------------------------
-# Build
-# -----------------------------
+echo "==> Building"
 cmake --build "$BUILD_DIR" -j"$(nproc)"
 
-# pushd build
-
-# make clean
-# make
-
-# popd
-
-
-echo "Build complete"
+echo "==> Done"

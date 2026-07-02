@@ -1,68 +1,168 @@
 cmake_minimum_required(VERSION 3.20)
 
+# --------------------------------------------------
+# Buildroot vs Native (host) mode selection
+# --------------------------------------------------
+set(BUILDROOT_DIR "" CACHE PATH "Buildroot root directory")
+set(TOOLCHAIN_PREFIX "" CACHE PATH "Toolchain architecture prefix")
+
+
+if(BUILDROOT_DIR STREQUAL "")
+    set(NATIVE_MODE ON)
+else()
+    set(NATIVE_MODE OFF)
+endif()
+
+message(STATUS "Native mode: ${NATIVE_MODE}")
+
+# --------------------------------------------------
+# TOOLCHAIN SELECTION (MUST HAPPEN EARLY)
+# --------------------------------------------------
+if(NATIVE_MODE)
+
+    message(STATUS "Using native toolchain (gcc/g++)")
+
+    set(CMAKE_C_COMPILER gcc CACHE STRING "" FORCE)
+    set(CMAKE_CXX_COMPILER g++ CACHE STRING "" FORCE)
+
+    execute_process(
+        COMMAND uname -m
+        OUTPUT_VARIABLE TOOLCHAIN_PREFIX
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+else()
+
+    message(STATUS "Using Buildroot toolchain")
+
+    set(TOOLCHAIN_FILE
+        "${BUILDROOT_DIR}/output/host/share/buildroot/toolchainfile.cmake"
+    )
+
+    if(NOT EXISTS "${TOOLCHAIN_FILE}")
+        message(FATAL_ERROR "Buildroot toolchain file not found: ${TOOLCHAIN_FILE}")
+    endif()
+
+    set(CMAKE_TOOLCHAIN_FILE "${TOOLCHAIN_FILE}" CACHE FILEPATH "" FORCE)
+
+    file(GLOB TOOLCHAINS "${BUILDROOT_DIR}/output/host/usr/bin/*-gcc")
+    list(GET TOOLCHAINS 0 GCC)
+
+    get_filename_component(GCC_NAME "${GCC}" NAME)
+    string(REGEX REPLACE "-gcc$" "" TOOLCHAIN_PREFIX "${GCC_NAME}")
+
+endif()
+
 project(ufedm C)
 
-set(BUILDROOT_DIR "" CACHE PATH
-    "Path to Buildroot root directory")
-
-if(NOT DEFINED BUILDROOT_DIR OR BUILDROOT_DIR STREQUAL "")
-    message(FATAL_ERROR
-        "BUILDROOT_DIR is not set.\n"
-        "Pass it with -DBUILDROOT_DIR=/path/to/buildroot")
-endif()
-
-if(NOT DEFINED KERNEL_ARCH OR KERNEL_ARCH STREQUAL "")
-    message(FATAL_ERROR
-        "KERNEL_ARCH is not set. See README.md for details.\n"
-        "Pass it with -KERNEL_ARCH=arm for example")
-endif()
-
-set(BR_OUTPUT "${BUILDROOT_DIR}/output")
-
 message(STATUS "C compiler: ${CMAKE_C_COMPILER}")
-message(STATUS "System name: ${CMAKE_SYSTEM_NAME}")
+message(STATUS "System: ${CMAKE_SYSTEM_NAME}")
 
-# Find the kernel tree
-file(GLOB KERNEL_DIRS
-    "${BR_OUTPUT}/build/linux-*")
+if(TOOLCHAIN_PREFIX MATCHES "x86_64")
+    set(KERNEL_ARCH "x86")
 
-list(LENGTH KERNEL_DIRS NUM_KERNELS)
+elseif(TOOLCHAIN_PREFIX MATCHES "aarch64")
+    set(KERNEL_ARCH "arm64")
 
-if(NUM_KERNELS EQUAL 0)
-    message(FATAL_ERROR "No linux-* directory found")
+elseif(TOOLCHAIN_PREFIX MATCHES "^arm")
+    set(KERNEL_ARCH "arm")
+
+elseif(TOOLCHAIN_PREFIX MATCHES "riscv64")
+    set(KERNEL_ARCH "riscv")
+
+else()
+    message(FATAL_ERROR "Unknown toolchain prefix: ${TOOLCHAIN_PREFIX}")
 endif()
 
-list(GET KERNEL_DIRS 0 LINUX_TREE)
-
-# Find the cross compiler
-file(GLOB GCC_CANDIDATES
-    "${BR_OUTPUT}/host/bin/*gcc")
-
-list(LENGTH GCC_CANDIDATES NUM_GCC)
-
-if(NUM_GCC EQUAL 0)
-    message(FATAL_ERROR "No Buildroot gcc found")
+if(KERNEL_ARCH STREQUAL "")
+    message(FATAL_ERROR
+        "KERNEL_ARCH is not set.\n"
+        "Are you running on a non-supported architecture?")
 endif()
 
-list(GET GCC_CANDIDATES 0 GCC_PATH)
+if(NATIVE_MODE)
 
-get_filename_component(GCC_NAME "${GCC_PATH}" NAME)
+    message(STATUS "Building against native host kernel")
 
-string(REPLACE "gcc" "" CROSS_COMPILE "${GCC_PATH}")
+    execute_process(
+        COMMAND uname -r
+        OUTPUT_VARIABLE KERNEL_RELEASE
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
 
-message(STATUS "Linux tree: ${LINUX_TREE}")
-message(STATUS "Cross compile: ${CROSS_COMPILE}")
+    set(LINUX_TREE "/lib/modules/${KERNEL_RELEASE}/build")
+
+    if(NOT EXISTS "${LINUX_TREE}")
+        message(FATAL_ERROR
+            "Kernel build directory not found:\n"
+            "  ${LINUX_TREE}\n"
+            "Install the headers for your running kernel.")
+    endif()
+
+    message(STATUS "Native compile: ${KERNEL_ARCH}")
+
+    set(KERNEL_MAKE_ARGS
+        -C ${LINUX_TREE}
+        M=${CMAKE_CURRENT_SOURCE_DIR}
+        MO=${CMAKE_BINARY_DIR}/kmod
+        modules
+    )
+
+else()
+
+    message(STATUS "Building against Buildroot")
+
+    set(BR_OUTPUT "${BUILDROOT_DIR}/output")
+
+    #
+    # Find kernel tree
+    #
+    file(GLOB KERNEL_DIRS
+        "${BR_OUTPUT}/build/linux-*")
+
+    list(LENGTH KERNEL_DIRS NUM_KERNELS)
+
+    if(NUM_KERNELS EQUAL 0)
+        message(FATAL_ERROR "No linux-* directory found")
+    endif()
+
+    list(GET KERNEL_DIRS 0 LINUX_TREE)
+
+    #
+    # Find cross compiler
+    #
+    file(GLOB GCC_CANDIDATES
+        "${BR_OUTPUT}/host/bin/*gcc")
+
+    list(LENGTH GCC_CANDIDATES NUM_GCC)
+
+    if(NUM_GCC EQUAL 0)
+        message(FATAL_ERROR "No Buildroot gcc found")
+    endif()
+
+    list(GET GCC_CANDIDATES 0 GCC_PATH)
+
+    string(REPLACE "gcc" "" CROSS_COMPILE "${GCC_PATH}")
+
+    message(STATUS "Linux tree: ${LINUX_TREE}")
+    message(STATUS "Cross compile: ${CROSS_COMPILE}")
+    message(STATUS "Cross compile target: ${KERNEL_ARCH}")
+
+    set(KERNEL_MAKE_ARGS
+        -C ${LINUX_TREE}
+        M=${CMAKE_CURRENT_SOURCE_DIR}
+        MO=${CMAKE_BINARY_DIR}/kmod
+        ARCH=${KERNEL_ARCH}
+        CROSS_COMPILE=${CROSS_COMPILE}
+        modules
+    )
+
+endif()
 
 set(KMOD_OUT "${CMAKE_BINARY_DIR}/kmod")
 
 add_custom_target(module ALL
-    COMMAND ${CMAKE_MAKE_PROGRAM}
-        -C ${LINUX_TREE}
-        M=${CMAKE_CURRENT_SOURCE_DIR}
-        MO=${KMOD_OUT}
-        ARCH=${KERNEL_ARCH}
-        CROSS_COMPILE=${CROSS_COMPILE}
-        modules
+    COMMAND ${CMAKE_MAKE_PROGRAM} ${KERNEL_MAKE_ARGS}
 )
 
 add_subdirectory(user)
