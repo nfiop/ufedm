@@ -27,7 +27,7 @@ The kernel module will be in `build/kmod` directory now.
 
 You can then upload it to the Olimex LIME2 board and load it as usual.
 
-## Testing with `nandsim`
+## Testing with `nandsim` on your local machine
 
 With `nandsim`, you can run tests on any platform (x86, ARM64, RISC-V, you name it...) -
 it's a powerful utility for those lacking the physical hardware and want to verify
@@ -54,6 +54,26 @@ Then attach this driver & specify the corresponding MTD index:
 ```sh
 insmod build/kmod/ufedm.ko mtds=0
 ```
+
+### Running in a VM
+
+Running this kernel module during development stage could be dangerous
+to the system stability.
+
+To prevent a kernel crash on your host, you can run a QEMU VM with
+`nandsim` being automatically loaded with your Linux image and a custom
+built initramfs containing the `build` directory inside.
+
+See `run-nandsim-vm.sh` for more details, but something like this should
+get you started:
+
+```sh
+KERNEL=/boot/vmlinuz-linux INITRD=/boot/initramfs-linux.img \
+  ./run-nandsim-vm.sh
+```
+
+Adjust the `KERNEL` and `INITRD` to your environment and make sure you
+have read permissions on both files.
 
 ## Limitations
 
