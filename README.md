@@ -55,6 +55,21 @@ Then attach this driver & specify the corresponding MTD index:
 insmod build/kmod/ufedm.ko mtds=0
 ```
 
+`nandsim` can technically simulate almost any NAND flash chip you might
+think of.
+
+### Data restoration as an example use case
+
+Data restoration people might find using `nandsim` extremely valuable -
+it could be useful in case of a damaged chip and having a backup, even
+one that's incomplete, from a chip, without needing the actual physical
+chip or risking ruining the actual data on the chip further.
+
+In such case you can identify bad block markers yourself and instantiate
+an appropriate `nandsim` instance with the data to examine valuable data
+and keeping a backup of such data before trying to apply it on a new
+chip.
+
 ### Running in a VM
 
 Running this kernel module during development stage could be dangerous
