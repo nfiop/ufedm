@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 KERNEL="${KERNEL:-/boot/vmlinuz-$(uname -r)}"
 MODVER="$(uname -r)"
@@ -35,6 +34,24 @@ cp -a "$PWD/build" "$ROOT/build"
 # -----------------------------
 # BusyBox
 # -----------------------------
+
+if [ ! -x "$BUSYBOX" ]; then
+    echo "BusyBox missing!"
+    exit 1
+fi
+
+# verify it's a real BusyBox binary
+if ! "$BUSYBOX" --help 2>/dev/null | grep -q "BusyBox"; then
+    echo "BusyBox present but not functional"
+    exit 1
+fi
+
+# verify busybox is statically compiled
+if ! file "$BUSYBOX" | grep -q "statically linked"; then
+    echo "BusyBox is not statically compiled!"
+    exit 1
+fi
+
 cp "$BUSYBOX" "$ROOT/bin/busybox"
 
 (
