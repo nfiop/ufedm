@@ -162,7 +162,10 @@ endif()
 
 add_custom_target(kernel_module ALL
     COMMAND ${CMAKE_MAKE_PROGRAM} ${KERNEL_MAKE_ARGS}
-    
+
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            ${CMAKE_BINARY_DIR}/kmod
+
     COMMAND ${CMAKE_COMMAND} -E copy
     	    ${KERNEL_MODULE_SRC}/ufedm.ko
     	    ${KMOD_STAGE}/
