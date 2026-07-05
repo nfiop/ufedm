@@ -9,6 +9,7 @@
 #include <linux/shmem_fs.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 #include <linux/vmalloc.h>
 
 #include "proxy_device/chrdev.h"
@@ -30,8 +31,24 @@ static void revoke_shmem_mapping(struct ufedm_proxy_device *dev)
 
 static int create_shmem_mapping(struct ufedm_proxy_device *dev)
 {
-	dev->shmem_file = shmem_kernel_file_setup(
-	    "ufedm_ringbuffer", PAGE_ALIGN(get_shm_region_size(&dev->info)), 0);
+
+	// FIXME: I really **REALLY** don't like this.
+	// But we don't have other choice right now.
+	// Remove this ifdef soup once old kernels can be forgotten...
+	//
+	// I did a quick check on elixir.bootlin.com and kernel 7.0.0 is the
+	// first to do the actual change:
+	// https://elixir.bootlin.com/linux/v7.0-rc1/source/include/linux/shmem_fs.h#L106
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+	dev->shmem_file = shmem_kernel_file_setup("ufedm_shm",
+	    PAGE_ALIGN(get_shm_region_size(&dev->info)),
+	    mk_vma_flags(VM_DONTDUMP | VM_LOCKED));
+#else
+	dev->shmem_file = shmem_kernel_file_setup("ufedm_shm",
+	    PAGE_ALIGN(get_shm_region_size(&dev->info)),
+	    VM_DONTDUMP | VM_LOCKED);
+#endif
 
 	if (IS_ERR(dev->shmem_file))
 		return PTR_ERR(dev->shmem_file);
