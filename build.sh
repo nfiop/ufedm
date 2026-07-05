@@ -88,7 +88,7 @@ fi
 
 echo "==> Configuring"
 
-configure_cmake_build_directory()
+configure_cmake_build_directory
 
 echo "==> Building"
 cmake --build "$BUILD_DIR" -j"$(nproc)"
