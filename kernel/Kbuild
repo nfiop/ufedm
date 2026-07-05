@@ -1,0 +1,11 @@
+obj-m := ufedm.o
+
+ufedm-y := init.o \
+           proxy_device/chrdev.o \
+           proxy_device/class.o \
+           proxy_device/device.o \
+           proxy_device/eventfd.o \
+           upper_mtd/device.o \
+           backing_mtd/device.o
+
+ccflags-y += -I$(src)/../include -I$(src)/

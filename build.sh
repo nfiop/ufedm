@@ -6,9 +6,24 @@ BUILD_DIR="$ROOT_DIR/build"
 
 BUILDROOT_DIR=""
 
+configure_cmake_build_directory() {
+   cmake -B "$BUILD_DIR" \
+    -DBUILDROOT_DIR="${BUILDROOT_DIR:-}" \
+    "$ROOT_DIR"
+}
+
 clean() {
+    rm -rf $"BUILD_DIR" 
+    
+    echo "==> Creating mock build environment before cleaning"
+    configure_cmake_build_directory
+
+    echo "==> Cleaning kernel module artifacts"
+    cmake --build ${BUILD_DIR} --target kernel_module_clean
+    
     echo "==> Cleaning build directory: $BUILD_DIR"
     rm -rf "$BUILD_DIR"
+ 
     echo "==> Clean complete"
 }
 
@@ -73,9 +88,7 @@ fi
 
 echo "==> Configuring"
 
-cmake -B "$BUILD_DIR" \
-    -DBUILDROOT_DIR="${BUILDROOT_DIR:-}" \
-    "$ROOT_DIR"
+configure_cmake_build_directory()
 
 echo "==> Building"
 cmake --build "$BUILD_DIR" -j"$(nproc)"

@@ -6,6 +6,9 @@ cmake_minimum_required(VERSION 3.20)
 set(BUILDROOT_DIR "" CACHE PATH "Buildroot root directory")
 set(TOOLCHAIN_PREFIX "" CACHE PATH "Toolchain architecture prefix")
 
+set(KERNEL_MODULE_SRC ${CMAKE_SOURCE_DIR}/kernel)
+set(KMOD_STAGE ${CMAKE_BINARY_DIR}/kmod)
+set(STAMP ${KMOD_STAGE}/.stamp)
 
 if(BUILDROOT_DIR STREQUAL "")
     set(NATIVE_MODE ON)
@@ -103,8 +106,7 @@ if(NATIVE_MODE)
 
     set(KERNEL_MAKE_ARGS
         -C ${LINUX_TREE}
-        M=${CMAKE_CURRENT_SOURCE_DIR}
-        MO=${CMAKE_BINARY_DIR}/kmod
+	    M=${KERNEL_MODULE_SRC}
         modules
     )
 
@@ -150,8 +152,7 @@ else()
 
     set(KERNEL_MAKE_ARGS
         -C ${LINUX_TREE}
-        M=${CMAKE_CURRENT_SOURCE_DIR}
-        MO=${CMAKE_BINARY_DIR}/kmod
+	    M=${KERNEL_MODULE_SRC}
         ARCH=${KERNEL_ARCH}
         CROSS_COMPILE=${CROSS_COMPILE}
         modules
@@ -159,10 +160,25 @@ else()
 
 endif()
 
-set(KMOD_OUT "${CMAKE_BINARY_DIR}/kmod")
-
-add_custom_target(module ALL
+add_custom_target(kernel_module ALL
     COMMAND ${CMAKE_MAKE_PROGRAM} ${KERNEL_MAKE_ARGS}
+    
+    COMMAND ${CMAKE_COMMAND} -E copy
+    	    ${KERNEL_MODULE_SRC}/ufedm.ko
+    	    ${KMOD_STAGE}/
+
+    WORKING_DIRECTORY ${KERNEL_MODULE_SRC}
+    VERBATIM
+)
+
+add_custom_target(kernel_module_clean
+    COMMAND ${CMAKE_MAKE_PROGRAM}
+	-C ${LINUX_TREE}
+	M=${KERNEL_MODULE_SRC}
+        clean
+
+    WORKING_DIRECTORY ${KERNEL_MODULE_SRC}
+    VERBATIM
 )
 
 add_subdirectory(user)
