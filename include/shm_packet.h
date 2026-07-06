@@ -13,16 +13,16 @@
  * The kernel is requested to serve an I/O request
  * on the backing MTD device. It then generates a packet
  * with a new & unique sequence number by holding an internal
- * counter for that purpose for each ring buffer.
+ * counter for that purpose for each shared buffer.
  * It then publishes the data in the buffer first, and the sequence
  * number. A sequence number of 0 is not valid, and marks
  * an entry that should not be processed by userspace.
  * To ease the receiving on userspace, an eventfd is created
- * for each ring buffer to be used for polling.
+ * for each shared buffer to be used for polling.
  *
  * How userspace should handle this -
  * A user program opens the corresponding proxy device
- * and the eventfd's (each for a ring buffer). Instead of scanning
+ * and the eventfd's (each for a shared buffer). Instead of scanning
  * it can poll on the matching eventfd and wait for events. Reading
  * from the eventfd will return a counter that is the same as sequence
  * number.
@@ -32,10 +32,10 @@
  * buffer in the ring packet. The kernel can't assume anything about
  * the layout besides sizes of DATA region and OOB region as well.
  *
- * When userspace handles the WRITE ring buffer, it should read the
+ * When userspace handles the WRITE shared buffer, it should read the
  * incoming buffer, and modify & rearrange bytes as it seems fit
  * before written to the actual chip.
- * When userspace handles the READ ring buffer, it should read the
+ * When userspace handles the READ shared buffer, it should read the
  * incoming buffer and apply the reverse operation before ACKing
  * being done.
  *
