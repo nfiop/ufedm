@@ -14,8 +14,6 @@
 #include "proxy_device/device.h"
 #include "upper_mtd/device.h"
 
-static struct upper_mtd_device *s_upper_mtds;
-
 static int upper_erase(struct mtd_info *mtd, struct erase_info *instr)
 {
 	WARN_ON(mtd->priv == NULL);
@@ -153,13 +151,14 @@ static void destroy_device(struct upper_mtd_device *dev)
 	kvfree(dev->upper);
 }
 
-static void destroy_devices(struct upper_mtd_device *devs, size_t max_index)
+void upper_mtd_destroy_devices(struct upper_mtd_device *dev_array, size_t count)
 {
-	for (size_t idx = 0; idx < max_index; idx++)
-		destroy_device(&devs[idx]);
+	for (size_t idx = 0; idx < count; idx++)
+		destroy_device(&dev_array[idx]);
 }
 
-static int create_upper_devices(struct upper_mtd_device *devs, size_t count)
+int upper_mtd_initialize_devices(
+    struct upper_mtd_device *dev_array, size_t count)
 {
 	size_t i;
 	int ret;
@@ -177,7 +176,7 @@ static int create_upper_devices(struct upper_mtd_device *devs, size_t count)
 		// We send a `get_backend_mtd_device(i)` and rely on the fact
 		// that function will check if it's a NULL pointer.
 		ret = create_device(
-		    &devs[i], get_backend_mtd_device(i), proxy_dev);
+		    &dev_array[i], get_backend_mtd_device(i), proxy_dev);
 		if (ret != 0)
 			goto error_create_device;
 	}
@@ -185,21 +184,6 @@ static int create_upper_devices(struct upper_mtd_device *devs, size_t count)
 	return 0;
 
 error_create_device:
-	destroy_devices(devs, i);
+	upper_mtd_destroy_devices(dev_array, i);
 	return ret;
-}
-
-int upper_mtd_initialize_devices(size_t count)
-{
-	s_upper_mtds = kvzalloc(sizeof(struct mtd_info) * count, GFP_KERNEL);
-	if (!s_upper_mtds) {
-		return -ENOMEM;
-	};
-
-	return create_upper_devices(s_upper_mtds, count);
-}
-
-void upper_mtd_destroy_devices(size_t count)
-{
-	destroy_devices(s_upper_mtds, count);
 }

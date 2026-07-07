@@ -19,7 +19,9 @@ struct upper_mtd_device {
 	struct ufedm_proxy_device* proxy_dev;
 };
 
-int upper_mtd_initialize_devices(size_t count);
-void upper_mtd_destroy_devices(size_t count);
+int upper_mtd_initialize_devices(
+    struct upper_mtd_device *dev_array, size_t count);
+void upper_mtd_destroy_devices(
+    struct upper_mtd_device *dev_array, size_t count);
 
 #endif

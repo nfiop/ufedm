@@ -20,6 +20,8 @@ MODULE_VERSION("0.1");
 static uint mtds[PROXY_MAX_DEVICE_COUNT];
 static int mtds_count;
 
+static struct upper_mtd_device *s_upper_mtds;
+
 // We declare a global value that can be used around the module.
 // This is not the best practice, but we don't have a better option.
 size_t g_mtds_count;
@@ -71,6 +73,12 @@ static int __init ufedm_init(void)
 
 	g_mtds_count = mtds_count;
 
+	s_upper_mtds =
+	    kvzalloc(sizeof(struct upper_mtd_device) * mtds_count, GFP_KERNEL);
+	if (!s_upper_mtds) {
+		return -ENOMEM;
+	};
+
 	ret = validate_mtds_list();
 	if (ret != 0)
 		return ret;
@@ -83,7 +91,7 @@ static int __init ufedm_init(void)
 	if (ret != 0)
 		goto error_create_proxy_device_class;
 
-	ret = upper_mtd_initialize_devices(g_mtds_count);
+	ret = upper_mtd_initialize_devices(s_upper_mtds, g_mtds_count);
 	if (ret != 0)
 		goto error_upper_mtd_initialize_devices;
 
@@ -101,9 +109,10 @@ error_create_proxy_device_class:
 
 static void __exit ufedm_exit(void)
 {
-	upper_mtd_destroy_devices(g_mtds_count);
+	upper_mtd_destroy_devices(s_upper_mtds, g_mtds_count);
 	proxy_device_class_exit();
 	put_backend_mtd_devices(g_mtds_count);
+	kvfree(s_upper_mtds);
 	printk(KERN_INFO "ufedm: kernel module unloaded!\n");
 }
 
