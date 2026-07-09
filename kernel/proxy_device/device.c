@@ -69,7 +69,7 @@ int proxy_device_create(struct ufedm_proxy_device *dev)
 	mutex_init(&dev->shmem_lock);
 
 	ret = create_shmem_mapping(dev);
-	if (ret)
+	if (ret != 0)
 		goto error_create_shmem_mapping;
 
 	ret = proxy_chrdev_create(dev->devno, dev);

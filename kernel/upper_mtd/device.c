@@ -136,7 +136,7 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 	dev->proxy_dev = proxy_dev;
 
 	ret = mtd_device_register(dev->upper, NULL, 0);
-	if (ret) {
+	if (ret != 0) {
 		pr_err("ufedm: failed to register upper MTD\n");
 		return ret;
 	}

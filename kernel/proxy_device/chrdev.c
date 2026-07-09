@@ -220,7 +220,7 @@ int proxy_chrdev_create(dev_t devno, struct ufedm_proxy_device *dev)
 	dev->ring_cdev.owner = THIS_MODULE;
 
 	ret = cdev_add(&dev->ring_cdev, devno, 1);
-	if (ret)
+	if (ret != 0)
 		goto error_cdev_add;
 
 	return 0;
