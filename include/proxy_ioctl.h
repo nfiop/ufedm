@@ -20,12 +20,7 @@
 /* Magic number for ioctl commands */
 #define PROXY_IOC_MAGIC 'P'
 
-/* Types for eventfd registration/unregistration */
-#define PROXY_EVENTFD_WRITE_BUFFER 1
-#define PROXY_EVENTFD_READ_BUFFER 2
-
 /* Struct definitions for ioctl ops */
-
 struct proxy_mtd_info {
 	__u32 backend_mtd_index;
 	__u16 flash_page_size; /* Should be the entire page size of a NAND flash
@@ -48,8 +43,27 @@ struct proxy_stats {
 	__u64 reserved[5]; /* reserved for future expansion */
 };
 
+/* enum for proxy_answer_base type */
+enum proxy_io_answer_type {
+	PROXY_IO_ANSWER_WRITE = 0,
+	PROXY_IO_ANSWER_READ,
+};
+
+struct proxy_answer_base {
+	__u8 type;
+
+	/* A packet slot to ACK or NACK, currently used with a slot number
+	 * to verify that userspace didn't do this by mistake.
+	 * It **MIGHT** be removed if deemed unnecessary later on...
+	 */
+	__u64 seq_num;
+
+	__u64 slot_num;
+};
+
 struct proxy_ack {
-	__u64 seq_num; /* A sequence number to ACK */
+	struct proxy_answer_base base;
+
 	/* Data region that is returned. For most cases should be equal
 	 * to the actual page data region size on the flash chip.
 	 */
@@ -61,27 +75,34 @@ struct proxy_ack {
 };
 
 struct proxy_nack {
-	__u64 seq_num; /* A sequence number to NACK */
+	struct proxy_answer_base base;
+
 	__u16 positive_errno;
+};
+
+/* enum for proxy_eventfd_type type */
+enum proxy_eventfd_type {
+	PROXY_EVENTFD_TYPE_READ = 0,
+	PROXY_EVENTFD_TYPE_WRITE,
 };
 
 struct proxy_register_eventfd {
 	__u8 type;
+	__u32 slot_idx;
 	int fd;
 };
 
 struct proxy_unregister_eventfd {
 	__u8 type;
+	__u32 slot_idx;
 };
 
 /* ioctl commands */
 #define PROXY_IOC_GET_SHM_INFO _IOR(PROXY_IOC_MAGIC, 0, struct proxy_shm_info)
 #define PROXY_IOC_GET_STATS _IOR(PROXY_IOC_MAGIC, 1, struct proxy_stats)
 #define PROXY_IOC_GET_MTD_INFO _IOR(PROXY_IOC_MAGIC, 2, struct proxy_mtd_info)
-#define PROXY_IOC_ACK_WRITE _IOW(PROXY_IOC_MAGIC, 3, struct proxy_ack)
-#define PROXY_IOC_ACK_READ _IOW(PROXY_IOC_MAGIC, 4, struct proxy_ack)
-#define PROXY_IOC_NACK_WRITE _IOW(PROXY_IOC_MAGIC, 5, struct proxy_nack)
-#define PROXY_IOC_NACK_READ _IOW(PROXY_IOC_MAGIC, 6, struct proxy_nack)
+#define PROXY_IOC_ACK _IOW(PROXY_IOC_MAGIC, 3, struct proxy_ack)
+#define PROXY_IOC_NACK _IOW(PROXY_IOC_MAGIC, 5, struct proxy_nack)
 #define PROXY_IOC_REGISTER_EVENTFD                                             \
 	_IOW(PROXY_IOC_MAGIC, 7, struct proxy_register_eventfd)
 #define PROXY_IOC_UNREGISTER_EVENTFD                                           \

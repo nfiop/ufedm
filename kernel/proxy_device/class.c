@@ -6,6 +6,9 @@
 #include <linux/cdev.h>
 #include <linux/fs.h>
 
+#include <linux/mtd/rawnand.h>
+#include <linux/mtd/spinand.h>
+
 #include "backing_mtd/device.h"
 #include "defs.h"
 #include "proxy_device/class.h"
@@ -34,10 +37,8 @@ static void proxy_device_fill_shm_info(
     struct ufedm_proxy_device *dev, struct proxy_shm_info *p)
 {
 	p->proto_ver = 0;
-	p->bitmap_bits_cnt = PROXY_PACKETS_COUNT_PER_QUEUE;
-	p->packet_size = sizeof(struct shm_packet) +
-			 dev->backend_dev->writesize +
-			 dev->backend_dev->oobsize;
+	p->slot_size = sizeof(struct shm_packet) + dev->page_data_size +
+		       dev->page_oob_size;
 	p->packet_queues_cnt = 2;
 	memset(p->reserved, 0, sizeof(__u32) * 6);
 }
@@ -53,6 +54,7 @@ static int add_devices(struct prox_dev_class *devs, int *max_idx)
 {
 	int major;
 	int ret;
+	struct nand_device *nanddev;
 	struct mtd_info *backing_mtd;
 
 	*max_idx = 0;
@@ -77,6 +79,16 @@ static int add_devices(struct prox_dev_class *devs, int *max_idx)
 		dev->backend_dev = backing_mtd;
 		dev->devno = MKDEV(major, *max_idx);
 		dev->device_class = devs->device_class;
+
+		/* This call is guaranteed to be safe. We checked
+		 * that we deal with a NAND device before.
+		 */
+		nanddev = mtd_to_nanddev(backing_mtd);
+
+		/* Data bytes per page, OOB size not included */
+		dev->page_data_size = nanddev_page_size(nanddev);
+
+		dev->page_oob_size = nanddev_per_page_oobsize(nanddev);
 
 		proxy_device_fill_shm_info(dev, &dev->info);
 

@@ -13,6 +13,8 @@
 
 #include "proxy_device/chrdev.h"
 #include "proxy_device/class.h"
+#include "proxy_device/eventfd.h"
+#include "proxy_device/io.h"
 #include "proxy_ioctl.h"
 
 #include "shm_packet.h"
@@ -27,14 +29,14 @@ static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 	if (!prox_dev)
 		return -ENODEV;
 
-	mutex_lock(&prox_dev->shmem_lock);
+	mutex_lock(&prox_dev->shm_mapping.lock);
 
-	if (prox_dev->shmem_revoked) {
-		mutex_unlock(&prox_dev->shmem_lock);
+	if (prox_dev->shm_mapping.revoked) {
+		mutex_unlock(&prox_dev->shm_mapping.lock);
 		return -EIO;
 	}
 
-	mutex_unlock(&prox_dev->shmem_lock);
+	mutex_unlock(&prox_dev->shm_mapping.lock);
 
 	// Don't allow opening more than once, as we can't really
 	// handle multiple clients anyway.
@@ -80,15 +82,15 @@ static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 		return -EINVAL;
 	}
 
-	mutex_lock(&dev->shmem_lock);
+	mutex_lock(&dev->shm_mapping.lock);
 
 	/*
 	 * CRITICAL RACE PROTECTION HERE:
 	 * Prevent mmap after revoke (during device removal & module
 	 * teardown)
 	 */
-	if (dev->shmem_revoked) {
-		mutex_unlock(&dev->shmem_lock);
+	if (dev->shm_mapping.revoked) {
+		mutex_unlock(&dev->shm_mapping.lock);
 		return -EIO;
 	}
 
@@ -96,9 +98,9 @@ static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 	 * Delegate to shmem file mapping f_op function now.
 	 * This ensures proper address_space + MM tracking!
 	 */
-	ret = dev->shmem_file->f_op->mmap(dev->shmem_file, vma);
+	ret = dev->shm_mapping.filp->f_op->mmap(dev->shm_mapping.filp, vma);
 
-	mutex_unlock(&dev->shmem_lock);
+	mutex_unlock(&dev->shm_mapping.lock);
 	return ret;
 }
 
@@ -154,16 +156,39 @@ static long proxy_chrdev_ioctl(
 		goto exit;
 	}
 
+	case PROXY_IOC_ACK: {
+		struct proxy_ack tmp;
+		if (copy_from_user(
+			&tmp, (int __user *)arg, sizeof(struct proxy_ack)))
+			return -EFAULT;
+
+		ret = proxy_device_ack_request(prox_dev, &tmp);
+		goto exit;
+	}
+
+	case PROXY_IOC_NACK: {
+		struct proxy_nack tmp;
+		if (copy_from_user(
+			&tmp, (int __user *)arg, sizeof(struct proxy_nack)))
+			return -EFAULT;
+
+		ret = proxy_device_nack_request(prox_dev, &tmp);
+		goto exit;
+	}
+
 	case PROXY_IOC_REGISTER_EVENTFD: {
 		struct proxy_register_eventfd tmp;
 		if (copy_from_user(&tmp, (int __user *)arg,
 			sizeof(struct proxy_register_eventfd)))
 			return -EFAULT;
 		struct protected_eventfd_ctx *ctx = NULL;
-		if (tmp.type == PROXY_EVENTFD_WRITE_BUFFER)
-			ctx = &prox_dev->write_efd;
-		if (tmp.type == PROXY_EVENTFD_READ_BUFFER)
-			ctx = &prox_dev->read_efd;
+
+		if (tmp.type != PROXY_EVENTFD_TYPE_WRITE &&
+		    tmp.type != PROXY_EVENTFD_TYPE_READ)
+			return -EINVAL;
+
+		ctx = proxy_eventfd_ctx_based_on_type_and_slot(
+		    prox_dev, tmp.type, tmp.slot_idx);
 
 		if (ctx == NULL) {
 			ret = -EINVAL;
@@ -180,10 +205,13 @@ static long proxy_chrdev_ioctl(
 			sizeof(struct proxy_unregister_eventfd)))
 			return -EFAULT;
 		struct protected_eventfd_ctx *ctx = NULL;
-		if (tmp.type == PROXY_EVENTFD_WRITE_BUFFER)
-			ctx = &prox_dev->write_efd;
-		if (tmp.type == PROXY_EVENTFD_READ_BUFFER)
-			ctx = &prox_dev->read_efd;
+
+		if (tmp.type != PROXY_EVENTFD_TYPE_WRITE &&
+		    tmp.type != PROXY_EVENTFD_TYPE_READ)
+			return -EINVAL;
+
+		ctx = proxy_eventfd_ctx_based_on_type_and_slot(
+		    prox_dev, tmp.type, tmp.slot_idx);
 
 		if (ctx == NULL) {
 			ret = -EINVAL;

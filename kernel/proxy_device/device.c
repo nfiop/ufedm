@@ -3,74 +3,25 @@
  * Copyright (c) 2026 Liav A
  */
 
-#include <linux/fs.h>
-#include <linux/mm.h>
-#include <linux/module.h>
-#include <linux/shmem_fs.h>
-#include <linux/slab.h>
-#include <linux/uaccess.h>
-#include <linux/version.h>
-#include <linux/vmalloc.h>
+#include <linux/mutex.h>
 
 #include "proxy_device/chrdev.h"
-
-static void revoke_shmem_mapping(struct ufedm_proxy_device *dev)
-{
-	mutex_lock(&dev->shmem_lock);
-
-	if (dev->shmem_revoked) {
-		mutex_unlock(&dev->shmem_lock);
-		return;
-	}
-
-	dev->shmem_revoked = true;
-	unmap_mapping_range(dev->shmem_file->f_mapping, 0, 0, 1);
-
-	mutex_unlock(&dev->shmem_lock);
-}
-
-static int create_shmem_mapping(struct ufedm_proxy_device *dev)
-{
-
-	// FIXME: I really **REALLY** don't like this.
-	// But we don't have other choice right now.
-	// Remove this ifdef soup once old kernels can be forgotten...
-	//
-	// I did a quick check on elixir.bootlin.com and kernel 7.0.0 is the
-	// first to do the actual change:
-	// https://elixir.bootlin.com/linux/v7.0-rc1/source/include/linux/shmem_fs.h#L106
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
-	dev->shmem_file = shmem_kernel_file_setup("ufedm_shm",
-	    PAGE_ALIGN(get_shm_region_size(&dev->info)),
-	    mk_vma_flags(VM_DONTDUMP | VM_LOCKED));
-#else
-	dev->shmem_file = shmem_kernel_file_setup("ufedm_shm",
-	    PAGE_ALIGN(get_shm_region_size(&dev->info)),
-	    VM_DONTDUMP | VM_LOCKED);
-#endif
-
-	if (IS_ERR(dev->shmem_file))
-		return PTR_ERR(dev->shmem_file);
-
-	return 0;
-}
-
-static void destroy_shmem_mapping(struct ufedm_proxy_device *dev)
-{
-	fput(dev->shmem_file);
-	dev->shmem_file = NULL;
-}
+#include "proxy_device/io.h"
+#include "proxy_device/shm.h"
 
 int proxy_device_create(struct ufedm_proxy_device *dev)
 {
 	int ret;
 
-	mutex_init(&dev->shmem_lock);
+	mutex_init(&dev->shm_mapping.lock);
 
-	ret = create_shmem_mapping(dev);
+	ret = proxy_device_init_shared_memory(&dev->shm_mapping);
 	if (ret != 0)
-		goto error_create_shmem_mapping;
+		return ret;
+
+	ret = init_async_io_workers(dev);
+	if (ret < 0)
+		goto error_init_async_io_workers;
 
 	ret = proxy_chrdev_create(dev->devno, dev);
 	if (ret != 0)
@@ -92,9 +43,11 @@ error_create_device:
 	proxy_chrdev_destory(dev);
 
 error_proxy_chrdev_create:
-	destroy_shmem_mapping(dev);
+	destroy_async_io_workers(dev);
 
-error_create_shmem_mapping:
+error_init_async_io_workers:
+	proxy_device_destroy_shared_memory(&dev->shm_mapping);
+
 	return ret;
 }
 
@@ -107,7 +60,7 @@ void proxy_device_destroy(struct ufedm_proxy_device *dev)
 	device_destroy(dev->device_class, dev->devno);
 	proxy_chrdev_destory(dev);
 
-	revoke_shmem_mapping(dev);
+	destroy_async_io_workers(dev);
 
-	destroy_shmem_mapping(dev);
+	proxy_device_destroy_shared_memory(&dev->shm_mapping);
 }
