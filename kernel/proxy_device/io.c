@@ -41,7 +41,7 @@ static void fill_shm_slot_packet_buffer(
 	 * is visible to userspace that there's a new packet to process.
 	 */
 	pkt = get_shm_packet(q->parent_dev->shm_mapping.kaddr,
-	    &q->parent_dev->info, q->shm_idx, slot->slot_idx);
+	    &q->parent_dev->shm_info, q->shm_idx, slot->slot_idx);
 
 	/* If we have a NULL pointer in either databuf or
 	 * oobbuf, it means the callee (in the upper MTD layer)
@@ -100,7 +100,7 @@ static struct proxy_requests_queue *verify_answer_base(
 	    base->type != PROXY_IO_ANSWER_READ)
 		return NULL;
 
-	if (base->slot_num >= PROXY_PACKETS_COUNT_PER_QUEUE)
+	if (base->slot_num >= dev->shm_info.slots_count_per_queue)
 		return NULL;
 
 	return base->type == PROXY_IO_ANSWER_WRITE ? &dev->writeq : &dev->readq;
@@ -239,7 +239,8 @@ static int initalize_queue_slots(
 	 * Lastly, allocate a shadow buffer for READ operations.
 	 */
 
-	for (idx = 0; idx < PROXY_PACKETS_COUNT_PER_QUEUE; idx++) {
+	for (idx = 0; idx < q->parent_dev->shm_info.slots_count_per_queue;
+	    idx++) {
 		q->req_pkt_slots[idx].slot_idx = idx;
 		init_completion(&q->req_pkt_slots[idx].done);
 		q->req_pkt_slots[idx].parentq = q;
@@ -275,15 +276,17 @@ static int init_proxy_requests_queue(
 	q->watchdog_sleep_duration_ms = 300;
 	q->slot_timeout_ms = 300;
 
+	q->parent_dev = dev;
+
 	q->allocated_bitmap =
-	    bitmap_zalloc(PROXY_PACKETS_COUNT_PER_QUEUE, GFP_KERNEL);
+	    bitmap_zalloc(dev->shm_info.slots_count_per_queue, GFP_KERNEL);
 	if (!q->allocated_bitmap) {
 		ret = -ENOMEM;
 		goto exit;
 	}
 
 	q->req_pkt_slots = kvzalloc(
-	    PROXY_PACKETS_COUNT_PER_QUEUE * sizeof(struct proxy_io_slot),
+	    dev->shm_info.slots_count_per_queue * sizeof(struct proxy_io_slot),
 	    GFP_KERNEL);
 	if (!q->req_pkt_slots) {
 		ret = -ENOMEM;
@@ -295,7 +298,6 @@ static int init_proxy_requests_queue(
 	if (ret != 0)
 		goto error_initializing_queue_slots;
 
-	q->parent_dev = dev;
 	/* Do this at last - if we managed to create everything, then
 	 * we are ready to serve for this queue.
 	 */
@@ -310,7 +312,7 @@ static int init_proxy_requests_queue(
 	return 0;
 
 error_creating_kthread:
-	destroy_queue_slots(q, PROXY_PACKETS_COUNT_PER_QUEUE);
+	destroy_queue_slots(q, dev->shm_info.slots_count_per_queue);
 
 error_initializing_queue_slots:
 	kvfree(q->req_pkt_slots);
@@ -325,7 +327,7 @@ exit:
 static void destroy_proxy_requests_queue(struct proxy_requests_queue *q)
 {
 	kthread_stop(q->watchdog);
-	destroy_queue_slots(q, PROXY_PACKETS_COUNT_PER_QUEUE);
+	destroy_queue_slots(q, q->parent_dev->shm_info.slots_count_per_queue);
 	kvfree(q->req_pkt_slots);
 	bitmap_free(q->allocated_bitmap);
 }
@@ -375,8 +377,8 @@ int proxy_device_get_slot(struct ufedm_proxy_device *dev,
 
 	mutex_lock(&q->lock);
 
-	slot_num = bitmap_find_free_region(
-	    q->allocated_bitmap, PROXY_PACKETS_COUNT_PER_QUEUE, 0);
+	slot_num = bitmap_find_free_region(q->allocated_bitmap,
+	    q->parent_dev->shm_info.slots_count_per_queue, 0);
 	if (slot_num < 0) {
 		mutex_unlock(&q->lock);
 		return -ENOSPC;

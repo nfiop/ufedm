@@ -29,7 +29,7 @@ static int shm_map_kernel(struct ufedm_shm_mapping *mapping)
 	struct file *filp = mapping->filp;
 
 	size = i_size_read(file_inode(filp));
-	WARN_ON(size != PAGE_ALIGN(get_shm_region_size(&dev->info)));
+	WARN_ON(size != PAGE_ALIGN(get_shm_region_size(&dev->shm_info)));
 
 	mapping->nr_pages = DIV_ROUND_UP(size, PAGE_SIZE);
 
@@ -89,11 +89,11 @@ static int create_shm_mapping(struct ufedm_shm_mapping *mapping)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
 	mapping->filp = shmem_kernel_file_setup("ufedm_shm",
-	    PAGE_ALIGN(get_shm_region_size(&dev->info)),
+	    PAGE_ALIGN(get_shm_region_size(&dev->shm_info)),
 	    mk_vma_flags(VM_DONTDUMP | VM_LOCKED));
 #else
 	mapping->filp = shmem_kernel_file_setup("ufedm_shm",
-	    PAGE_ALIGN(get_shm_region_size(&dev->info)),
+	    PAGE_ALIGN(get_shm_region_size(&dev->shm_info)),
 	    VM_DONTDUMP | VM_LOCKED);
 #endif
 

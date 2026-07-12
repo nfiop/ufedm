@@ -12,7 +12,7 @@ struct protected_eventfd_ctx *proxy_eventfd_ctx_based_on_type_and_slot(
 	BUG_ON(type != PROXY_EVENTFD_TYPE_WRITE &&
 	       type != PROXY_EVENTFD_TYPE_READ);
 
-	if (slot_idx >= PROXY_PACKETS_COUNT_PER_QUEUE)
+	if (slot_idx >= dev->shm_info.slots_count_per_queue)
 		return NULL;
 
 	if (type == PROXY_EVENTFD_TYPE_WRITE)

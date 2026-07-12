@@ -40,6 +40,7 @@ static void proxy_device_fill_shm_info(
 	p->slot_size = sizeof(struct shm_packet) + dev->page_data_size +
 		       dev->page_oob_size;
 	p->packet_queues_cnt = 2;
+	p->slots_count_per_queue = PROXY_PACKETS_COUNT_PER_QUEUE;
 	memset(p->reserved, 0, sizeof(__u32) * 6);
 }
 
@@ -90,7 +91,7 @@ static int add_devices(struct prox_dev_class *devs, int *max_idx)
 
 		dev->page_oob_size = nanddev_per_page_oobsize(nanddev);
 
-		proxy_device_fill_shm_info(dev, &dev->info);
+		proxy_device_fill_shm_info(dev, &dev->shm_info);
 
 		ret = proxy_device_create(dev);
 		if (ret != 0)

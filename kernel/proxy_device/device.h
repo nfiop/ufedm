@@ -206,7 +206,7 @@ struct ufedm_proxy_device {
 	/* Used for ioctls and I/O requests - should not change once was
 	 * set by the init path.
 	 */
-	struct proxy_shm_info info;
+	struct proxy_shm_info shm_info;
 
 	struct proxy_requests_queue readq;
 	struct proxy_requests_queue writeq;

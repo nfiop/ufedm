@@ -10,6 +10,9 @@
 // system. It can be easily changed if so desired.
 #define PROXY_MAX_DEVICE_COUNT 32
 
+// We might allow dynamically setting this value in the future...
+// For now, this value is hardcoded, so don't use it except the
+// very few places where it should be (like in the kernel!).
 #define PROXY_PACKETS_COUNT_PER_QUEUE 20
 
 // Detect whether we are compiling in the kernel or userspace

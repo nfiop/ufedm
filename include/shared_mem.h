@@ -17,6 +17,11 @@ struct proxy_shm_info {
 	 * buffer */
 	__u32 slot_size;
 
+	/* Currently set with hardcoded PROXY_PACKETS_COUNT_PER_QUEUE but this
+	 * can change in the future!
+	 */
+	__u16 slots_count_per_queue;
+
 	/* Currently 2 - one for READ and one for WRITE */
 	__u8 packet_queues_cnt;
 
@@ -29,7 +34,7 @@ struct proxy_shm_info {
  * to changing data + OOB sizes of the backing MTD device.
  * The struct would have look like this then:
  * struct packet_queue {
- *		struct shm_packet pkts[PROXY_PACKETS_COUNT_PER_QUEUE];
+ *		struct shm_packet pkts[SLOTS_COUNT_PER_QUEUE];
  * }
  *
  * And then a struct op_queues would look like this:
@@ -57,7 +62,7 @@ enum shm_queue_idx {
 };
 
 #define SHM_QUEUE_OFFSET(info, queue_idx)                                      \
-	((queue_idx * (info->slot_size * PROXY_PACKETS_COUNT_PER_QUEUE)))
+	((queue_idx * (info->slot_size * info->slots_count_per_queue)))
 
 static inline u8 *get_first_shm_packet_offset_in_queue(
     void *mmap_base, struct proxy_shm_info *info, size_t queue_idx)

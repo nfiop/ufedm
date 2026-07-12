@@ -112,7 +112,7 @@ static int upper_read_oob(
 	if (ret < 0)
 		return ret;
 
-	pkt = get_shm_packet(proxy_dev->shm_mapping.kaddr, &proxy_dev->info,
+	pkt = get_shm_packet(proxy_dev->shm_mapping.kaddr, &proxy_dev->shm_info,
 	    SHM_READ_QUEUE_IDX, slot->slot_idx);
 
 	/* Reading is **SIGNIFICANTLY HARDER** than writing. We should read
@@ -227,7 +227,7 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 	if (ret < 0)
 		return ret;
 
-	pkt = get_shm_packet(proxy_dev->shm_mapping.kaddr, &proxy_dev->info,
+	pkt = get_shm_packet(proxy_dev->shm_mapping.kaddr, &proxy_dev->shm_info,
 	    SHM_WRITE_QUEUE_IDX, slot->slot_idx);
 
 	struct simple_nand_page_io_req simple_req;
