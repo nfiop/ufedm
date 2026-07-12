@@ -195,10 +195,12 @@ static int watchdog_thread(void *arg)
 		{
 			WARN_ON(slot->state == PROXY_IO_SLOT_STATE_UNALLOCATED);
 
-			if (slot->state != PROXY_IO_SLOT_STATE_PENDING_USER ||
-			    ktime_compare(ktime_sub(now, slot->started_time_ms),
-				ms_to_ktime(q->slot_timeout_ms)) < 0)
+			if (slot->state != PROXY_IO_SLOT_STATE_PENDING_USER)
 				continue;
+
+			if (ktime_compare(ktime_sub(now, slot->started_time),
+                  ms_to_ktime(q->slot_timeout_ms)) < 0)
+				  continue;
 
 			pr_info(
 			    "ufedm: request %llu (%s, slot %zu) timed out\n",
@@ -293,6 +295,7 @@ static int init_proxy_requests_queue(
 	if (ret != 0)
 		goto error_initializing_queue_slots;
 
+	q->parent_dev = dev;
 	/* Do this at last - if we managed to create everything, then
 	 * we are ready to serve for this queue.
 	 */
@@ -380,6 +383,8 @@ int proxy_device_get_slot(struct ufedm_proxy_device *dev,
 	}
 
 	q->req_pkt_slots[slot_num].state = PROXY_IO_SLOT_STATE_ALLOCATED;
+	list_add(&q->req_pkt_slots[slot_num].allocated_node,
+		&q->allocated_requests);
 
 	mutex_unlock(&q->lock);
 
@@ -413,7 +418,7 @@ void proxy_device_io_slot_pub_new_packet(
 	q->req_pkt_slots[slot->slot_idx].status = 0;
 
 	slot->state = PROXY_IO_SLOT_STATE_PENDING_USER;
-	q->req_pkt_slots[slot->slot_idx].started_time_ms = ktime_get();
+	q->req_pkt_slots[slot->slot_idx].started_time = ktime_get();
 
 	fill_shm_slot_packet_buffer(slot, req);
 

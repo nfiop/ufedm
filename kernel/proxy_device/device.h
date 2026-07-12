@@ -89,7 +89,7 @@ struct proxy_io_slot {
 	struct completion done;
 	int status;
 
-	ktime_t started_time_ms;
+	ktime_t started_time;
 
 	/* "our source of truth" metadata structure - a duplicate of what
 	 * is also copied into the shared memory interface.
