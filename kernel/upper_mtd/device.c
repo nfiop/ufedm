@@ -57,8 +57,20 @@ static int ensure_safe_environment(struct mtd_info *mtd, struct mtd_oob_ops *ops
 	 *
 	 * If the user needs to do this anyway, they can probably just open
 	 * the _original_ backing MTD device and invoke their program on it.
+	 * 
+	 * It should be noted that some userspace program that does read(2) or
+	 * write(2) might invoke a request with MTD_OPS_PLACE_OOB but with oob
+	 * buffer equals to NULL - in such case we do allow such request to
+	 * be processed.
 	 */
-	if (ops->mode != MTD_OPS_AUTO_OOB) {
+	if (ops->ooblen != 0 && ops->oobbuf == NULL) {
+		pr_warn_ratelimited("%s: ops->ooblen != 0 but ops->oobbuf == NULL, "
+				    "Abort.\n",
+		    mtd->name);
+		return -EINVAL;
+	}
+
+	if (ops->ooblen != 0 && ops->mode != MTD_OPS_AUTO_OOB) {
 		pr_warn_ratelimited("%s: Only MTD_OPS_AUTO_OOB mode access is "
 				    "allowed by this device.\n",
 		    mtd->name);
