@@ -15,8 +15,9 @@
 #include "proxy_device/class.h"
 #include "proxy_device/eventfd.h"
 #include "proxy_device/io.h"
-#include "proxy_ioctl.h"
 
+#include "proxy_eventfd.h"
+#include "proxy_ioctl.h"
 #include "shm_packet.h"
 
 static int proxy_chrdev_open(struct inode *inode, struct file *filp)

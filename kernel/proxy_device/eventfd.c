@@ -5,6 +5,8 @@
 
 #include "proxy_device/eventfd.h"
 
+#include "proxy_eventfd.h"
+
 struct protected_eventfd_ctx *proxy_eventfd_ctx_based_on_type_and_slot(
     struct ufedm_proxy_device *dev, enum proxy_eventfd_type type,
     size_t slot_idx)

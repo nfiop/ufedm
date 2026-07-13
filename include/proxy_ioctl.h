@@ -8,6 +8,7 @@
 #define PROXY_IOCTL_H
 
 #include "defs.h"
+#include "proxy_eventfd.h"
 #include "shared_mem.h"
 
 // Detect whether we are compiling in the kernel or userspace
@@ -78,12 +79,6 @@ struct proxy_nack {
 	struct proxy_answer_base base;
 
 	__u16 positive_errno;
-};
-
-/* enum for proxy_eventfd_type type */
-enum proxy_eventfd_type {
-	PROXY_EVENTFD_TYPE_READ = 0,
-	PROXY_EVENTFD_TYPE_WRITE,
 };
 
 struct proxy_register_eventfd {

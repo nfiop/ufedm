@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 #include "proxy_dev.h"
+#include "proxy_eventfd.h"
 #include "proxy_ioctl.h"
 
 static int __test_proxy_get_mtd_info_cmd(int fd)
