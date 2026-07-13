@@ -19,8 +19,28 @@ struct upper_mtd_device {
 	struct ufedm_proxy_device* proxy_dev;
 };
 
+/**
+ * @brief Initialize a counted set of upper MTD devices on an array.
+ *
+ * Iterates over all backing MTD devices and initialize a correspoinding
+ * upper MTD device
+ *
+ * @param dev_array array of `struct upper_mtd_device` objects.
+ * @param count size of array
+ * @return 0 for success or negative number for error.
+ */
 int upper_mtd_initialize_devices(
     struct upper_mtd_device *dev_array, size_t count);
+
+/**
+ * @brief Tear down a counted set of upper MTD devices on an array.
+ *
+ * Iterates over all upper MTD devices in an array and tear down them
+ *
+ * @param dev_array array of `struct upper_mtd_device` objects.
+ * @param count size of array
+ * @return void
+ */
 void upper_mtd_destroy_devices(
     struct upper_mtd_device *dev_array, size_t count);
 
