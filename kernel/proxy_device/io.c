@@ -109,11 +109,10 @@ static struct proxy_requests_queue *verify_answer_base(
     struct ufedm_proxy_device *dev, struct proxy_answer_base *base)
 {
 	struct proxy_requests_queue *q;
-	if (base->type != PROXY_IO_ANSWER_WRITE &&
-	    base->type != PROXY_IO_ANSWER_READ)
+	if (base->queue_idx >= dev->shm_info.queues_count)
 		return NULL;
 
-	q = base->type == PROXY_IO_ANSWER_WRITE ? dev->writeq : dev->readq;
+	q = &dev->queues[base->queue_idx];
 
 	if (base->slot_num >= q->info.slots_count)
 		return NULL;

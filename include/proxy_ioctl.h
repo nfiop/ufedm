@@ -44,14 +44,8 @@ struct proxy_stats {
 	__u64 reserved[5]; /* reserved for future expansion */
 };
 
-/* enum for proxy_answer_base type */
-enum proxy_io_answer_type {
-	PROXY_IO_ANSWER_WRITE = 0,
-	PROXY_IO_ANSWER_READ,
-};
-
 struct proxy_answer_base {
-	__u8 type;
+	__u8 queue_idx;
 
 	/* A packet slot to ACK or NACK, currently used with a slot number
 	 * to verify that userspace didn't do this by mistake.
