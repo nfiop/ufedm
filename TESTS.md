@@ -16,3 +16,4 @@ is actually "stable":
 | User-mode LDPC processing mode                     | User doing ECC on LDPC already-"corrected" data      | I/O transparent to upper layers                         |
 | User-mode encountering bad block                   | User doing I/O on known bad block                    | I/O error propagated to upper layers                    |
 | Attaching to NAND chip that requires scrambling?   | Define nandsim with chip that requires scrambling    | Kernel module refues to complete load sequence          |
+| Replacing order of write and read queues in buffer | Self-explanatory                                                        | Every works correctly          |
