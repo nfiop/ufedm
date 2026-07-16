@@ -16,6 +16,8 @@ foreach(t ${PROXY_UTESTS})
 
     target_compile_options(${t} PRIVATE -Wall -Wextra -Werror)
 
+    target_link_options(${t} PRIVATE -static)
+
     # Optional: debug build support
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_compile_options(${t} PRIVATE -O0 -g)
