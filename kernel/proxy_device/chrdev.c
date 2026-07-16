@@ -9,6 +9,7 @@
 #include <linux/shmem_fs.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 #include <linux/vmalloc.h>
 
 #include "proxy_device/chrdev.h"
@@ -56,6 +57,47 @@ static int proxy_chrdev_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
+static int proxy_chrdev_mmap_prepare(struct vm_area_desc *desc)
+{
+	int ret;
+	struct file *filp = desc->file;
+	struct ufedm_proxy_device *dev = filp->private_data;
+	u64 max_size = PAGE_ALIGN(dev->shm_info.total_buf_size);
+	unsigned long len = desc->end - desc->start;
+
+	if (len > max_size) {
+		return -EINVAL;
+	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+	if (!(desc->vma_flags & mk_vma_flags(VM_SHARED))) {
+#else
+	if (!(desc->vm_flags & VM_SHARED)) {
+#endif
+		pr_warn_ratelimited(
+		    "ufedm_proxy: failed to mmap, only MAP_SHARED allowed\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&dev->shm_mapping.lock);
+
+	if (dev->shm_mapping.revoked) {
+		mutex_unlock(&dev->shm_mapping.lock);
+		return -EIO;
+	}
+
+	if (!dev->shm_mapping.filp->f_op->mmap_prepare) {
+		mutex_unlock(&dev->shm_mapping.lock);
+		return -EOPNOTSUPP;
+	}
+
+	ret = dev->shm_mapping.filp->f_op->mmap_prepare(desc);
+
+	mutex_unlock(&dev->shm_mapping.lock);
+	return ret;
+}
+#else
 static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	int ret;
@@ -99,11 +141,18 @@ static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 	 * Delegate to shmem file mapping f_op function now.
 	 * This ensures proper address_space + MM tracking!
 	 */
+
+	if (!dev->shm_mapping.filp->f_op->mmap) {
+		mutex_unlock(&dev->shm_mapping.lock);
+		return -EOPNOTSUPP;
+	}
+
 	ret = dev->shm_mapping.filp->f_op->mmap(dev->shm_mapping.filp, vma);
 
 	mutex_unlock(&dev->shm_mapping.lock);
 	return ret;
 }
+#endif
 
 static long proxy_chrdev_ioctl(
     struct file *filp, unsigned int cmd, unsigned long arg)
@@ -256,7 +305,17 @@ static const struct file_operations fops = {
     .owner = THIS_MODULE,
     .open = proxy_chrdev_open,
     .release = proxy_chrdev_release,
+
+/* FIXME: Sadly, from kernel 6.19, there's no .mmap callback anymore
+ * so we need to use .mmap_prepare - remove this once we can ignore
+ * old kernels...
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
+    .mmap_prepare = proxy_chrdev_mmap_prepare,
+#else
     .mmap = proxy_chrdev_mmap,
+#endif
+
     .unlocked_ioctl = proxy_chrdev_ioctl,
 };
 
