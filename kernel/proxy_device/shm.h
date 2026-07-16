@@ -16,10 +16,10 @@
  * Initialize and allocate a shared memory mapping window for userspace
  * and kernel, using a shmem file.
  *
- * @param mapping mapping object inside `struct ufedm_proxy_device`
+ * @param dev a `struct ufedm_proxy_device` to initialize its shm_mapping struct
  * @return 0 if successful, otherwise (negative) if had error.
  */
-int proxy_device_init_shared_memory(struct ufedm_shm_mapping *mapping);
+int proxy_device_init_shared_memory(struct ufedm_proxy_device *dev);
 
 /**
  * @brief Create a shared memory mapping of a ufedm proxy device
@@ -31,5 +31,17 @@ int proxy_device_init_shared_memory(struct ufedm_shm_mapping *mapping);
  * @return void
  */
 void proxy_device_destroy_shared_memory(struct ufedm_shm_mapping *mapping);
+
+/**
+ * @brief Convert a tuple of proxy device pointer, queue index and slot index
+ *        to a memory window
+ *
+ * @param dev a proxy device instance
+ * @param queue_idx a queue index
+ * @param slot_idx a slot index
+ * @return pointer to a memory address in the kernel shared memory mapping
+ */
+struct shared_mem_slot *proxy_device_queue_and_slot_to_buf(
+    struct ufedm_proxy_device *dev, size_t queue_idx, size_t slot_idx);
 
 #endif

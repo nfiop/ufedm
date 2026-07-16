@@ -5,22 +5,22 @@
 
 #include "proxy_device/eventfd.h"
 
-#include "proxy_eventfd.h"
+#include "proxy_queue.h"
 
 struct protected_eventfd_ctx *proxy_eventfd_ctx_based_on_type_and_slot(
-    struct ufedm_proxy_device *dev, enum proxy_eventfd_type type,
-    size_t slot_idx)
+    struct ufedm_proxy_device *dev, enum proxy_queue_type type, size_t slot_idx)
 {
-	BUG_ON(type != PROXY_EVENTFD_TYPE_WRITE &&
-	       type != PROXY_EVENTFD_TYPE_READ);
+	struct proxy_requests_queue *q;
+	BUG_ON(type != PROXY_QUEUE_TYPE_READ && type != PROXY_QUEUE_TYPE_WRITE);
 
-	if (slot_idx >= dev->shm_info.slots_count_per_queue)
+	if (type == PROXY_QUEUE_TYPE_WRITE)
+		q = dev->writeq;
+	else
+		q = dev->readq;
+
+	if (slot_idx >= q->info.slots_count)
 		return NULL;
-
-	if (type == PROXY_EVENTFD_TYPE_WRITE)
-		return &dev->writeq.req_pkt_slots[slot_idx].efd;
-
-	return &dev->readq.req_pkt_slots[slot_idx].efd;
+	return &q->req_pkt_slots[slot_idx].efd;
 }
 
 int proxy_eventfd_ctx_register(struct protected_eventfd_ctx *ctx, int fd)

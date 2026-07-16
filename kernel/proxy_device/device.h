@@ -16,7 +16,7 @@
 
 #include "proxy_ioctl.h"
 #include "shared_mem.h"
-#include "shm_packet.h"
+#include "shm_slot.h"
 
 #define PROXY_DEVICE_NAME "ufedm_proxy"
 
@@ -70,7 +70,7 @@ struct proxy_requests_queue;
  * request. We **DO NOT** keep any data here - we trust userspace to do
  * its best in that regard, and pass it on to the backing MTD device
  * as-is.
- * A `struct shm_pkt_hdr` is a duplicate of what is initially created
+ * A `struct shm_slot_hdr` is a duplicate of what is initially created
  * during the initialization of a new packet on an allocated slot.
  */
 struct proxy_io_slot {
@@ -94,7 +94,7 @@ struct proxy_io_slot {
 	/* "our source of truth" metadata structure - a duplicate of what
 	 * is also copied into the shared memory interface.
 	 */
-	struct shm_pkt_hdr header;
+	struct shm_slot_hdr header;
 
 	/* This field is similar to the header - it's a shadow buffer that
 	 * is allocated during a READ operation for the sake of RAW reading
@@ -114,8 +114,6 @@ struct proxy_io_slot {
 	struct protected_eventfd_ctx efd;
 };
 
-typedef size_t shared_mem_ordered_idx_t;
-
 struct ufedm_proxy_device;
 struct proxy_requests_queue {
 	unsigned long *allocated_bitmap;
@@ -126,7 +124,7 @@ struct proxy_requests_queue {
 	struct list_head allocated_requests;
 
 	struct ufedm_proxy_device *parent_dev;
-	shared_mem_ordered_idx_t shm_idx;
+	struct proxy_shm_queue_info info;
 
 	size_t slot_timeout_ms;
 	size_t watchdog_sleep_duration_ms;
@@ -151,6 +149,11 @@ struct proxy_requests_queue {
 	struct mutex lock;
 };
 
+struct ufedm_shm_queue_mapping {
+	u32 offset;
+	u32 len;
+};
+
 struct ufedm_shm_mapping {
 	/* We allocate a shmem file to get a concise address_space mapping,
 	 * which would be used when doing mmap() on this device for the
@@ -163,6 +166,10 @@ struct ufedm_shm_mapping {
 	struct mutex lock;
 	struct file *filp;
 	bool revoked;
+
+	// The size of this map is derived from
+	// ufedm_proxy_device::shm_info::queues_count
+	struct ufedm_shm_queue_mapping *queues_map_entries;
 
 	/* This part of the struct is used as metadata for keeping a memory
 	 * window for the kernel to submit the workload via the shm interface.
@@ -208,8 +215,10 @@ struct ufedm_proxy_device {
 	 */
 	struct proxy_shm_info shm_info;
 
-	struct proxy_requests_queue readq;
-	struct proxy_requests_queue writeq;
+	struct proxy_requests_queue queues[PROXY_MAX_QUEUES_COUNT];
+
+	struct proxy_requests_queue *readq;
+	struct proxy_requests_queue *writeq;
 };
 
 int proxy_device_create(struct ufedm_proxy_device *dev);

@@ -85,7 +85,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	shm_region_size = get_shm_region_size(&shm_info);
+	shm_region_size = shm_info.total_buf_size;
 
 	test_invalid_mmap_non_shared(fd, shm_region_size);
 	test_invalid_mmap_size(fd, shm_region_size);

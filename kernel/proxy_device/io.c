@@ -14,15 +14,27 @@
 #include "proxy_device/device.h"
 #include "proxy_device/eventfd.h"
 #include "proxy_device/io.h"
+#include "proxy_device/shm.h"
 
-static const char *shm_idx_to_queue_name(shared_mem_ordered_idx_t shm_idx)
+static const char *shm_queue_type_to_queue_name(enum proxy_queue_type type)
 {
-	BUG_ON(shm_idx >= __SHM_QUEUE_IDX_MAX);
+	BUG_ON(type >= __PROXY_QUEUE_TYPE_MAX);
 
-	if (shm_idx == SHM_READ_QUEUE_IDX)
+	if (type == PROXY_QUEUE_TYPE_READ)
 		return "read queue";
 
 	return "write queue";
+}
+
+int proxy_device_fill_queue_info(
+    struct ufedm_proxy_device *dev, struct proxy_shm_queue_info *info)
+{
+	if (info->idx >= dev->shm_info.queues_count)
+		return -EINVAL;
+
+	memcpy(info, &dev->queues[info->idx].info,
+	    sizeof(struct proxy_shm_queue_info));
+	return 0;
 }
 
 static void fill_shm_slot_packet_buffer(
@@ -30,18 +42,18 @@ static void fill_shm_slot_packet_buffer(
 {
 	struct proxy_requests_queue *q = slot->parentq;
 	struct ufedm_proxy_device *dev = q->parent_dev;
-	struct shm_packet *pkt;
+	struct shared_mem_slot *shm_slot;
 
 	BUG_ON(req->ooblen > dev->page_oob_size);
 	BUG_ON(req->datalen > dev->page_data_size);
-	BUG_ON(q->shm_idx >= __SHM_QUEUE_IDX_MAX);
 
 	/* This is where we copy the data + OOB + packet header
 	 * to the shared memory interface. From this point onwards, it
 	 * is visible to userspace that there's a new packet to process.
 	 */
-	pkt = get_shm_packet(q->parent_dev->shm_mapping.kaddr,
-	    &q->parent_dev->shm_info, q->shm_idx, slot->slot_idx);
+
+	shm_slot = proxy_device_queue_and_slot_to_buf(
+	    q->parent_dev, q->info.idx, slot->slot_idx);
 
 	/* If we have a NULL pointer in either databuf or
 	 * oobbuf, it means the callee (in the upper MTD layer)
@@ -51,15 +63,15 @@ static void fill_shm_slot_packet_buffer(
 	 */
 
 	if (req->databuf != NULL)
-		memcpy(pkt->buf, req->databuf, req->datalen);
+		memcpy(shm_slot->buf, req->databuf, req->datalen);
 
 	if (req->oobbuf != NULL)
-		memcpy((u8 *)pkt->buf + dev->page_data_size, req->oobbuf,
+		memcpy((u8 *)shm_slot->buf + dev->page_data_size, req->oobbuf,
 		    req->ooblen);
 }
 
-static void __update_shm_packet_header(
-    struct shm_pkt_hdr *header, seq_num_t seq_num, u32 len, u32 ooblen)
+static void __update_shm_slot_header(
+    struct shm_slot_hdr *header, seq_num_t seq_num, u32 len, u32 ooblen)
 {
 	header->datalen = len;
 	header->ooblen = ooblen;
@@ -96,14 +108,17 @@ static void complete_request_locked(struct proxy_requests_queue *q,
 static struct proxy_requests_queue *verify_answer_base(
     struct ufedm_proxy_device *dev, struct proxy_answer_base *base)
 {
+	struct proxy_requests_queue *q;
 	if (base->type != PROXY_IO_ANSWER_WRITE &&
 	    base->type != PROXY_IO_ANSWER_READ)
 		return NULL;
 
-	if (base->slot_num >= dev->shm_info.slots_count_per_queue)
+	q = base->type == PROXY_IO_ANSWER_WRITE ? dev->writeq : dev->readq;
+
+	if (base->slot_num >= q->info.slots_count)
 		return NULL;
 
-	return base->type == PROXY_IO_ANSWER_WRITE ? &dev->writeq : &dev->readq;
+	return q;
 }
 
 static int reject_bogus_answer(
@@ -141,7 +156,7 @@ int proxy_device_ack_request(
 		goto exit;
 
 	/* Using ack->base.seq_num is OK, we checked that it's not bogus. */
-	__update_shm_packet_header(&q->req_pkt_slots[ack->base.slot_num].header,
+	__update_shm_slot_header(&q->req_pkt_slots[ack->base.slot_num].header,
 	    ack->base.seq_num, ack->retlen, ack->oob_retlen);
 
 	complete_request_locked(q, &q->req_pkt_slots[ack->base.slot_num], 0);
@@ -181,7 +196,7 @@ static int watchdog_thread(void *arg)
 	BUG_ON(q->watchdog_sleep_duration_ms == 0);
 	BUG_ON(q->slot_timeout_ms == 0);
 
-	const char *queue_name = shm_idx_to_queue_name(q->shm_idx);
+	const char *queue_name = shm_queue_type_to_queue_name(q->info.type);
 
 	pr_info("ufedm: watchdog thread (%s) started\n", queue_name);
 
@@ -239,8 +254,7 @@ static int initalize_queue_slots(
 	 * Lastly, allocate a shadow buffer for READ operations.
 	 */
 
-	for (idx = 0; idx < q->parent_dev->shm_info.slots_count_per_queue;
-	    idx++) {
+	for (idx = 0; idx < q->info.slots_count; idx++) {
 		q->req_pkt_slots[idx].slot_idx = idx;
 		init_completion(&q->req_pkt_slots[idx].done);
 		q->req_pkt_slots[idx].parentq = q;
@@ -261,6 +275,48 @@ error_allocating_shadow_buf:
 	return ret;
 }
 
+static void __stop_io_watchdog_threads(
+    struct ufedm_proxy_device *dev, size_t max_idx)
+{
+	size_t idx;
+	BUG_ON(max_idx > 2);
+	for (idx = 0; idx < max_idx; idx++) {
+		kthread_stop(dev->queues[idx].watchdog);
+	}
+}
+
+void stop_io_watchdog_threads(struct ufedm_proxy_device *dev)
+{
+	__stop_io_watchdog_threads(dev, 2);
+}
+
+static int start_io_watchdog_thread(struct proxy_requests_queue *q)
+{
+	q->watchdog = kthread_run(watchdog_thread, q, "ufedm-proxy-watchdog");
+	if (IS_ERR(q->watchdog)) {
+		return PTR_ERR(q->watchdog);
+	}
+	return 0;
+}
+
+int start_io_watchdog_threads(struct ufedm_proxy_device *dev)
+{
+	int ret;
+	int idx;
+
+	for (idx = 0; idx < 2; idx++) {
+		ret = start_io_watchdog_thread(&dev->queues[idx]);
+		if (ret != 0)
+			goto stop_threads;
+	}
+
+	return 0;
+
+stop_threads:
+	__stop_io_watchdog_threads(dev, idx);
+	return ret;
+}
+
 static int init_proxy_requests_queue(
     struct ufedm_proxy_device *dev, struct proxy_requests_queue *q)
 {
@@ -278,16 +334,14 @@ static int init_proxy_requests_queue(
 
 	q->parent_dev = dev;
 
-	q->allocated_bitmap =
-	    bitmap_zalloc(dev->shm_info.slots_count_per_queue, GFP_KERNEL);
+	q->allocated_bitmap = bitmap_zalloc(q->info.slots_count, GFP_KERNEL);
 	if (!q->allocated_bitmap) {
 		ret = -ENOMEM;
 		goto exit;
 	}
 
 	q->req_pkt_slots = kvzalloc(
-	    dev->shm_info.slots_count_per_queue * sizeof(struct proxy_io_slot),
-	    GFP_KERNEL);
+	    q->info.slots_count * sizeof(struct proxy_io_slot), GFP_KERNEL);
 	if (!q->req_pkt_slots) {
 		ret = -ENOMEM;
 		goto error_allocating_array;
@@ -303,16 +357,8 @@ static int init_proxy_requests_queue(
 	 */
 	INIT_LIST_HEAD(&q->allocated_requests);
 	mutex_init(&q->lock);
-	q->watchdog = kthread_run(watchdog_thread, q, "ufedm-proxy-watchdog");
-	if (IS_ERR(q->watchdog)) {
-		ret = PTR_ERR(q->watchdog);
-		goto error_creating_kthread;
-	}
 
 	return 0;
-
-error_creating_kthread:
-	destroy_queue_slots(q, dev->shm_info.slots_count_per_queue);
 
 error_initializing_queue_slots:
 	kvfree(q->req_pkt_slots);
@@ -326,23 +372,29 @@ exit:
 
 static void destroy_proxy_requests_queue(struct proxy_requests_queue *q)
 {
-	kthread_stop(q->watchdog);
-	destroy_queue_slots(q, q->parent_dev->shm_info.slots_count_per_queue);
+	destroy_queue_slots(q, q->info.slots_count);
 	kvfree(q->req_pkt_slots);
 	bitmap_free(q->allocated_bitmap);
 }
 
-int init_async_io_workers(struct ufedm_proxy_device *dev)
+int init_io_queues(struct ufedm_proxy_device *dev)
 {
 	int ret;
+	dev->writeq = &dev->queues[0];
+	dev->writeq->info.idx = 0;
+	dev->writeq->info.type = PROXY_QUEUE_TYPE_WRITE;
+	dev->writeq->info.slots_count = PROXY_SLOTS_COUNT_PER_QUEUE;
 
-	dev->writeq.shm_idx = SHM_WRITE_QUEUE_IDX;
-	ret = init_proxy_requests_queue(dev, &dev->writeq);
+	dev->readq = &dev->queues[1];
+	dev->readq->info.idx = 1;
+	dev->readq->info.type = PROXY_QUEUE_TYPE_READ;
+	dev->readq->info.slots_count = PROXY_SLOTS_COUNT_PER_QUEUE;
+
+	ret = init_proxy_requests_queue(dev, dev->writeq);
 	if (ret != 0)
 		goto exit;
 
-	dev->readq.shm_idx = SHM_READ_QUEUE_IDX;
-	ret = init_proxy_requests_queue(dev, &dev->readq);
+	ret = init_proxy_requests_queue(dev, dev->readq);
 	if (ret != 0) {
 		goto error_init_proxy_requests_read_queue;
 	}
@@ -350,16 +402,16 @@ int init_async_io_workers(struct ufedm_proxy_device *dev)
 	return 0;
 
 error_init_proxy_requests_read_queue:
-	destroy_proxy_requests_queue(&dev->writeq);
+	destroy_proxy_requests_queue(dev->writeq);
 
 exit:
 	return ret;
 }
 
-void destroy_async_io_workers(struct ufedm_proxy_device *dev)
+void destroy_io_queues(struct ufedm_proxy_device *dev)
 {
-	destroy_proxy_requests_queue(&dev->readq);
-	destroy_proxy_requests_queue(&dev->writeq);
+	destroy_proxy_requests_queue(dev->readq);
+	destroy_proxy_requests_queue(dev->writeq);
 }
 
 int proxy_device_get_slot(struct ufedm_proxy_device *dev,
@@ -371,14 +423,14 @@ int proxy_device_get_slot(struct ufedm_proxy_device *dev,
 	struct proxy_requests_queue *q;
 
 	if (type == NAND_PAGE_READ)
-		q = &dev->readq;
+		q = dev->readq;
 	else
-		q = &dev->writeq;
+		q = dev->writeq;
 
 	mutex_lock(&q->lock);
 
-	slot_num = bitmap_find_free_region(q->allocated_bitmap,
-	    q->parent_dev->shm_info.slots_count_per_queue, 0);
+	slot_num = bitmap_find_free_region(
+	    q->allocated_bitmap, q->info.slots_count, 0);
 	if (slot_num < 0) {
 		mutex_unlock(&q->lock);
 		return -ENOSPC;
@@ -413,7 +465,7 @@ void proxy_device_io_slot_pub_new_packet(
 	 * just does the processing and either ACK/NACK after it examines (and
 	 * done processing if it can).
 	 */
-	__update_shm_packet_header(&q->req_pkt_slots[slot->slot_idx].header,
+	__update_shm_slot_header(&q->req_pkt_slots[slot->slot_idx].header,
 	    seq_num, req->datalen, req->ooblen);
 
 	reinit_completion(&q->req_pkt_slots[slot->slot_idx].done);
@@ -424,7 +476,7 @@ void proxy_device_io_slot_pub_new_packet(
 
 	fill_shm_slot_packet_buffer(slot, req);
 
-	__update_shm_packet_header(&q->req_pkt_slots[slot->slot_idx].header,
+	__update_shm_slot_header(&q->req_pkt_slots[slot->slot_idx].header,
 	    seq_num, req->datalen, req->ooblen);
 
 	mutex_unlock(&q->lock);

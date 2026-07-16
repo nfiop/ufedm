@@ -14,6 +14,7 @@
 #include "proxy_device/class.h"
 #include "proxy_device/device.h"
 #include "proxy_device/io.h"
+#include "proxy_device/shm.h"
 #include "upper_mtd/device.h"
 
 static int upper_erase(struct mtd_info *mtd, struct erase_info *instr)
@@ -92,7 +93,7 @@ static int upper_read_oob(
 	int ret;
 	struct upper_mtd_device *dev;
 	struct proxy_io_slot *slot;
-	struct shm_packet *pkt;
+	struct shared_mem_slot *shm_slot;
 	struct ufedm_proxy_device *proxy_dev;
 	struct nand_io_iter iter;
 	struct nand_device *nand;
@@ -112,8 +113,8 @@ static int upper_read_oob(
 	if (ret < 0)
 		return ret;
 
-	pkt = get_shm_packet(proxy_dev->shm_mapping.kaddr, &proxy_dev->shm_info,
-	    SHM_READ_QUEUE_IDX, slot->slot_idx);
+	shm_slot = proxy_device_queue_and_slot_to_buf(
+	    proxy_dev, slot->parentq->info.idx, slot->slot_idx);
 
 	/* Reading is **SIGNIFICANTLY HARDER** than writing. We should read
 	 * a whole raw page - the data and OOB together, and immediately memcpy
@@ -184,9 +185,9 @@ static int upper_read_oob(
 			goto exit;
 		}
 
-		memcpy(iter.req.databuf.in, pkt->buf, iter.req.datalen);
+		memcpy(iter.req.databuf.in, shm_slot->buf, iter.req.datalen);
 		memcpy(iter.req.oobbuf.in,
-		    (const u8 *)pkt->buf + proxy_dev->page_data_size,
+		    (const u8 *)shm_slot->buf + proxy_dev->page_data_size,
 		    iter.req.ooblen);
 
 		ops->retlen += iter.req.datalen;
@@ -204,7 +205,7 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 	int ret;
 	struct upper_mtd_device *dev;
 	struct proxy_io_slot *slot;
-	struct shm_packet *pkt;
+	struct shared_mem_slot *shm_slot;
 	struct ufedm_proxy_device *proxy_dev;
 	struct nand_io_iter iter;
 	struct nand_device *nand;
@@ -227,8 +228,8 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 	if (ret < 0)
 		return ret;
 
-	pkt = get_shm_packet(proxy_dev->shm_mapping.kaddr, &proxy_dev->shm_info,
-	    SHM_WRITE_QUEUE_IDX, slot->slot_idx);
+	shm_slot = proxy_device_queue_and_slot_to_buf(
+	    proxy_dev, slot->parentq->info.idx, slot->slot_idx);
 
 	struct simple_nand_page_io_req simple_req;
 
@@ -253,8 +254,8 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 			goto exit;
 		}
 
-		user_ret_datalen = pkt->header.datalen;
-		user_ret_ooblen = pkt->header.ooblen;
+		user_ret_datalen = shm_slot->header.datalen;
+		user_ret_ooblen = shm_slot->header.ooblen;
 
 		if (user_ret_datalen > proxy_dev->page_data_size) {
 			pr_warn_ratelimited(
@@ -279,8 +280,9 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 		per_page_raw_ops.mode = MTD_OPS_RAW;
 		per_page_raw_ops.len = user_ret_datalen;
 		per_page_raw_ops.ooblen = user_ret_ooblen;
-		per_page_raw_ops.datbuf = pkt->buf;
-		per_page_raw_ops.oobbuf = pkt->buf + proxy_dev->page_data_size;
+		per_page_raw_ops.datbuf = shm_slot->buf;
+		per_page_raw_ops.oobbuf =
+		    shm_slot->buf + proxy_dev->page_data_size;
 
 		/* We can also fail right here as well.
 		 * Common reasons are I/O issues in hardware, etc.

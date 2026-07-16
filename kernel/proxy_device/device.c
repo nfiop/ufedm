@@ -9,23 +9,50 @@
 #include "proxy_device/io.h"
 #include "proxy_device/shm.h"
 
+static void proxy_device_fill_shm_info(
+    struct ufedm_proxy_device *dev, struct proxy_shm_info *p)
+{
+	size_t queue_idx;
+	p->proto_ver = 0;
+	p->slot_size = sizeof(struct shared_mem_slot) + dev->page_data_size +
+		       dev->page_oob_size;
+	p->queues_count = PROXY_MAX_QUEUES_COUNT;
+
+	p->total_buf_size = 0;
+
+	for (queue_idx = 0; queue_idx < p->queues_count; queue_idx++) {
+		p->total_buf_size +=
+		    dev->queues[queue_idx].info.slots_count * p->slot_size;
+	}
+	memset(p->reserved, 0, sizeof(__u32) * 6);
+}
+
 int proxy_device_create(struct ufedm_proxy_device *dev)
 {
 	int ret;
 
 	mutex_init(&dev->shm_mapping.lock);
 
-	ret = proxy_device_init_shared_memory(&dev->shm_mapping);
-	if (ret != 0)
-		return ret;
-
-	ret = init_async_io_workers(dev);
+	ret = init_io_queues(dev);
 	if (ret < 0)
-		goto error_init_async_io_workers;
+		goto exit;
+
+	// Now that we know the sizes of each queue, we can fill this
+	// struct safely.
+	proxy_device_fill_shm_info(dev, &dev->shm_info);
+	BUG_ON(dev->shm_info.total_buf_size == 0);
+
+	ret = proxy_device_init_shared_memory(dev);
+	if (ret != 0)
+		goto revert_io_queues;
+
+	ret = start_io_watchdog_threads(dev);
+	if (ret != 0)
+		goto delete_shared_memory;
 
 	ret = proxy_chrdev_create(dev->devno, dev);
 	if (ret != 0)
-		goto error_proxy_chrdev_create;
+		goto stop_io_threads;
 
 	dev->device = device_create(dev->device_class, NULL, dev->devno, NULL,
 	    "ufedm_proxy%d", MINOR(dev->devno));
@@ -33,21 +60,25 @@ int proxy_device_create(struct ufedm_proxy_device *dev)
 	if (IS_ERR(dev->device)) {
 		pr_err("ufedm: device_create failed\n");
 		ret = PTR_ERR(dev->device);
-		goto error_create_device;
+		goto delete_chrdev;
 	}
 
 	atomic_set(&dev->already_open, 0);
 	return 0;
 
-error_create_device:
+delete_chrdev:
 	proxy_chrdev_destory(dev);
 
-error_proxy_chrdev_create:
-	destroy_async_io_workers(dev);
+stop_io_threads:
+	stop_io_watchdog_threads(dev);
 
-error_init_async_io_workers:
+delete_shared_memory:
 	proxy_device_destroy_shared_memory(&dev->shm_mapping);
 
+revert_io_queues:
+	destroy_io_queues(dev);
+
+exit:
 	return ret;
 }
 
@@ -59,8 +90,8 @@ void proxy_device_destroy(struct ufedm_proxy_device *dev)
 
 	device_destroy(dev->device_class, dev->devno);
 	proxy_chrdev_destory(dev);
-
-	destroy_async_io_workers(dev);
+	stop_io_watchdog_threads(dev);
 
 	proxy_device_destroy_shared_memory(&dev->shm_mapping);
+	destroy_io_queues(dev);
 }

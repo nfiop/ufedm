@@ -8,10 +8,11 @@
 
 #include "defs.h"
 
-/* enum for proxy_eventfd_type type */
-enum proxy_eventfd_type {
-	PROXY_EVENTFD_TYPE_READ = 0,
-	PROXY_EVENTFD_TYPE_WRITE,
+/* enum for proxy_queue_type type */
+enum proxy_queue_type {
+	PROXY_QUEUE_TYPE_READ = 0,
+	PROXY_QUEUE_TYPE_WRITE,
+	__PROXY_QUEUE_TYPE_MAX
 };
 
 #endif

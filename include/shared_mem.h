@@ -7,7 +7,7 @@
 #define __SHARED_MEMORY_REGION_H
 
 #include "defs.h"
-#include "shm_packet.h"
+#include "shm_slot.h"
 
 struct proxy_shm_info {
 	/* Protocol version for packet communication, should be	0 for now */
@@ -17,15 +17,26 @@ struct proxy_shm_info {
 	 * buffer */
 	__u32 slot_size;
 
-	/* Currently set with hardcoded PROXY_PACKETS_COUNT_PER_QUEUE but this
-	 * can change in the future!
-	 */
-	__u16 slots_count_per_queue;
-
 	/* Currently 2 - one for READ and one for WRITE */
-	__u8 packet_queues_cnt;
+	__u32 queues_count;
+
+	/* Should indicate the size for passing to mmap(2)
+	 * when for getting access to the shared memory.
+	 */
+	__u32 total_buf_size;
 
 	__u32 reserved[6];	/* reserved for future expansion */
+};
+
+/* This struct is used by userspace for determining the
+ * the slots count (currently hardcoded) and the type of
+ * the queue (READ or WRITE).
+ */
+struct proxy_shm_queue_info {
+	__u32 idx;
+
+	__u8 type;
+	__u16 slots_count;
 };
 
 /* It could probably be quite nice to define a struct of
@@ -34,60 +45,18 @@ struct proxy_shm_info {
  * to changing data + OOB sizes of the backing MTD device.
  * The struct would have look like this then:
  * struct packet_queue {
- *		struct shm_packet pkts[SLOTS_COUNT_PER_QUEUE];
+ *		struct shared_mem_slot slots[SLOTS_COUNT_PER_QUEUE];
  * }
- *
- * And then a struct op_queues would look like this:
- *	struct op_queues {
- *		struct packet_queue tx;
- *		struct packet_queue rx;
- *	};
  *
  * And finally an entire shared memory interface could be defined like:
  *	 struct shared_region {
- *		struct op_queues read;
- *		struct op_queues write;
+ *		struct packet_queue read;
+ *		struct packet_queue write;
  *	};
  *
- * Still, there's hope. We can define helper functions that will get us
- * right to the actual structures' offsets, as intended.
- * All we need is a pointer to a valid `struct proxy_shm_info` and few
- * more details along it.
+ * Unfortunately, evaluating sizes is too hard to do in a function helpers.
+ * Userspace should evaluate this via specific ioctls, and the kernel has
+ * the needed metadata in its data structures already.
  */
-
-enum shm_queue_idx {
-	SHM_READ_QUEUE_IDX = 0,
-	SHM_WRITE_QUEUE_IDX = 1,
-	__SHM_QUEUE_IDX_MAX = 2,
-};
-
-#define SHM_QUEUE_OFFSET(info, queue_idx)                                      \
-	((queue_idx * (info->slot_size * info->slots_count_per_queue)))
-
-static inline u8 *get_first_shm_packet_offset_in_queue(
-    void *mmap_base, struct proxy_shm_info *info, size_t queue_idx)
-{
-	return (u8 *)mmap_base + SHM_QUEUE_OFFSET(info, queue_idx);
-}
-
-static inline struct shm_packet *get_first_shm_packet_in_queue(
-    void *mmap_base, struct proxy_shm_info *info, size_t queue_idx)
-{
-	return (struct shm_packet *)get_first_shm_packet_offset_in_queue(
-	    mmap_base, info, queue_idx);
-}
-
-static inline struct shm_packet *get_shm_packet(void *mmap_base,
-    struct proxy_shm_info *info, size_t queue_idx, size_t pkt_idx)
-{
-	return (struct shm_packet *)(get_first_shm_packet_offset_in_queue(
-					 mmap_base, info, queue_idx) +
-				     (pkt_idx * sizeof(struct shm_packet)));
-}
-
-static inline size_t get_shm_region_size(struct proxy_shm_info *info)
-{
-	return SHM_QUEUE_OFFSET(info, info->packet_queues_cnt + 1);
-}
 
 #endif

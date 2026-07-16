@@ -15,21 +15,16 @@
 
 #include "proxy_device/shm.h"
 
-static int shm_map_kernel(struct ufedm_shm_mapping *mapping)
+static int shm_map_kernel(struct ufedm_proxy_device *dev)
 {
-	/* I don't want to pass a separate struct proxy_shm_info*
-	 * pointer, so using a container_of is the best we can do.
-	 */
-	struct ufedm_proxy_device *dev =
-	    container_of(mapping, struct ufedm_proxy_device, shm_mapping);
-
 	loff_t size;
 	unsigned int i;
 	int ret = 0;
+	struct ufedm_shm_mapping *mapping = &dev->shm_mapping;
 	struct file *filp = mapping->filp;
 
 	size = i_size_read(file_inode(filp));
-	WARN_ON(size != PAGE_ALIGN(get_shm_region_size(&dev->shm_info)));
+	WARN_ON(size != PAGE_ALIGN(dev->shm_info.total_buf_size));
 
 	mapping->nr_pages = DIV_ROUND_UP(size, PAGE_SIZE);
 
@@ -71,13 +66,9 @@ err_put_pages:
 	return ret;
 }
 
-static int create_shm_mapping(struct ufedm_shm_mapping *mapping)
+static int create_shm_mapping(struct ufedm_proxy_device *dev)
 {
-	/* I don't want to pass a separate struct proxy_shm_info*
-	 * pointer, so using a container_of is the best we can do.
-	 */
-	struct ufedm_proxy_device *dev =
-	    container_of(mapping, struct ufedm_proxy_device, shm_mapping);
+	struct ufedm_shm_mapping *mapping = &dev->shm_mapping;
 
 	// FIXME: I really **REALLY** don't like this.
 	// But we don't have other choice right now.
@@ -89,12 +80,11 @@ static int create_shm_mapping(struct ufedm_shm_mapping *mapping)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
 	mapping->filp = shmem_kernel_file_setup("ufedm_shm",
-	    PAGE_ALIGN(get_shm_region_size(&dev->shm_info)),
+	    PAGE_ALIGN(dev->shm_info.total_buf_size),
 	    mk_vma_flags(VM_DONTDUMP | VM_LOCKED));
 #else
 	mapping->filp = shmem_kernel_file_setup("ufedm_shm",
-	    PAGE_ALIGN(get_shm_region_size(&dev->shm_info)),
-	    VM_DONTDUMP | VM_LOCKED);
+	    PAGE_ALIGN(dev->shm_info.total_buf_size), VM_DONTDUMP | VM_LOCKED);
 #endif
 
 	if (IS_ERR(mapping->filp))
@@ -141,20 +131,47 @@ static void destroy_shm_mapping(struct ufedm_shm_mapping *mapping)
 	mapping->filp = NULL;
 }
 
-int proxy_device_init_shared_memory(struct ufedm_shm_mapping *mapping)
+int proxy_device_init_shared_memory(struct ufedm_proxy_device *dev)
 {
 	int ret;
+	struct ufedm_shm_mapping *mapping = &dev->shm_mapping;
 
-	ret = create_shm_mapping(mapping);
+	ret = create_shm_mapping(dev);
 	if (ret < 0) {
 		goto exit;
 	}
 
-	ret = shm_map_kernel(mapping);
-	if (ret < 0) {
-		destroy_shm_mapping(mapping);
+	mapping->queues_map_entries =
+	    kvzalloc(sizeof(struct ufedm_shm_queue_mapping *) *
+			 dev->shm_info.queues_count,
+		GFP_KERNEL);
+	if (mapping->queues_map_entries == NULL) {
+		ret = -ENOMEM;
+		goto revert_shm_mapping_creation;
 	}
 
+	// FIXME: Make this nicer somehow
+
+	mapping->queues_map_entries[0].offset = 0;
+	mapping->queues_map_entries[0].len =
+	    dev->queues[0].info.slots_count * dev->shm_info.slot_size;
+
+	mapping->queues_map_entries[1].offset =
+	    mapping->queues_map_entries[0].len;
+	mapping->queues_map_entries[1].len =
+	    dev->queues[1].info.slots_count * dev->shm_info.slot_size;
+
+	ret = shm_map_kernel(dev);
+	if (ret < 0) {
+		goto revert_queues_map_creation;
+	}
+
+	return 0;
+
+revert_queues_map_creation:
+	kvfree(dev->shm_mapping.queues_map_entries);
+revert_shm_mapping_creation:
+	destroy_shm_mapping(&dev->shm_mapping);
 exit:
 	return ret;
 }
@@ -163,5 +180,24 @@ void proxy_device_destroy_shared_memory(struct ufedm_shm_mapping *mapping)
 {
 	remove_kernel_mapping(mapping);
 	revoke_user_shm_mapping(mapping);
+	kvfree(mapping->queues_map_entries);
 	destroy_shm_mapping(mapping);
+}
+
+struct shared_mem_slot *proxy_device_queue_and_slot_to_buf(
+    struct ufedm_proxy_device *dev, size_t queue_idx, size_t slot_idx)
+{
+	struct ufedm_shm_mapping *mapping = &dev->shm_mapping;
+	if (queue_idx >= dev->shm_info.queues_count)
+		return NULL;
+
+	struct ufedm_shm_queue_mapping *queue_mapping =
+	    &mapping->queues_map_entries[queue_idx];
+
+	if (slot_idx * dev->shm_info.slot_size >= queue_mapping->len)
+		return NULL;
+
+	u8 *addr = (u8 *)mapping->kaddr + queue_mapping->offset +
+		   (slot_idx * dev->shm_info.slot_size);
+	return (struct shared_mem_slot *)addr;
 }

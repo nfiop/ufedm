@@ -8,7 +8,7 @@
 #define PROXY_IOCTL_H
 
 #include "defs.h"
-#include "proxy_eventfd.h"
+#include "proxy_queue.h"
 #include "shared_mem.h"
 
 // Detect whether we are compiling in the kernel or userspace
@@ -96,7 +96,9 @@ struct proxy_unregister_eventfd {
 #define PROXY_IOC_GET_SHM_INFO _IOR(PROXY_IOC_MAGIC, 0, struct proxy_shm_info)
 #define PROXY_IOC_GET_STATS _IOR(PROXY_IOC_MAGIC, 1, struct proxy_stats)
 #define PROXY_IOC_GET_MTD_INFO _IOR(PROXY_IOC_MAGIC, 2, struct proxy_mtd_info)
-#define PROXY_IOC_ACK _IOW(PROXY_IOC_MAGIC, 3, struct proxy_ack)
+#define PROXY_IOC_GET_QUEUE_INFO                                               \
+	_IOR(PROXY_IOC_MAGIC, 3, struct proxy_shm_queue_info)
+#define PROXY_IOC_ACK _IOW(PROXY_IOC_MAGIC, 4, struct proxy_ack)
 #define PROXY_IOC_NACK _IOW(PROXY_IOC_MAGIC, 5, struct proxy_nack)
 #define PROXY_IOC_REGISTER_EVENTFD                                             \
 	_IOW(PROXY_IOC_MAGIC, 7, struct proxy_register_eventfd)

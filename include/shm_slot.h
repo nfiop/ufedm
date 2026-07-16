@@ -3,8 +3,8 @@
  * Copyright (c) 2026 Liav A
  */
 
-#ifndef __SHARED_MEMORY_BUFFER__PACKET__
-#define __SHARED_MEMORY_BUFFER__PACKET__
+#ifndef __SHARED_MEMORY_BUFFER__SLOT__
+#define __SHARED_MEMORY_BUFFER__SLOT__
 
 #include "defs.h"
 
@@ -60,7 +60,7 @@
 
 typedef __u64 seq_num_t;
 
-struct shm_pkt_hdr {
+struct shm_slot_hdr {
 	/* This is a published kernel sequence number, userspace should
 	 * not touch it - it should modify the data as needed, and send
 	 * an ACK ioctl based on the provided seq_num when it's done
@@ -89,8 +89,8 @@ struct shm_pkt_hdr {
 	__u32 ooblen;
 };
 
-struct shm_packet {
-	struct shm_pkt_hdr header;
+struct shared_mem_slot {
+	struct shm_slot_hdr header;
 
 	/* Should contain enough size for page data and OOB data
 	 * as well. The offsets and lengths are managed by the

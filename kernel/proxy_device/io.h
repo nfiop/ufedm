@@ -30,24 +30,43 @@ struct simple_nand_page_io_req {
 /**
  * @brief Initialize I/O mechanism and required facility for a proxy device
  *
- * Initialize the read & write I/O queues, watchdog kthread's, and slots
- * to allocate and use during upper MTD callbacks.
+ * Initialize the read & write I/O queues and slots as a preparation,
+ * before
  *
  * @param dev the proxy device corresponding to the upper MTD device
  * @return 0 if allocated succesfully, otherwise negative number as error
  */
-int init_async_io_workers(struct ufedm_proxy_device *dev);
+int init_io_queues(struct ufedm_proxy_device *dev);
 
 /**
  * @brief Tear-down I/O mechanism for a proxy device
  *
- * Destroy the read & write I/O queues, watchdog kthread's, and slots
- * to allocate and use during upper MTD callbacks.
+ * Destroy the read & write I/O queues and their resources.
  *
  * @param dev the proxy device corresponding to the upper MTD device
  * @return void
  */
-void destroy_async_io_workers(struct ufedm_proxy_device *dev);
+void destroy_io_queues(struct ufedm_proxy_device *dev);
+
+/**
+ * @brief Start watchdog threads for I/O queues
+ *
+ * Start watchdog threads on each I/O queue for a proxy device
+ *
+ * @param dev the proxy device corresponding to the upper MTD device
+ * @return 0 if done succesfully, otherwise negative number as error
+ */
+int start_io_watchdog_threads(struct ufedm_proxy_device *dev);
+
+/**
+ * @brief Stop watchdog threads for I/O queues
+ *
+ * Stop watchdog thread for each I/O queue for a proxy device
+ *
+ * @param dev the proxy device corresponding to the upper MTD device
+ * @return void
+ */
+void stop_io_watchdog_threads(struct ufedm_proxy_device *dev);
 
 /**
  * @brief Do a ACK on a I/O request in a slot
@@ -74,6 +93,20 @@ int proxy_device_ack_request(
  */
 int proxy_device_nack_request(
     struct ufedm_proxy_device *dev, struct proxy_nack *nack);
+
+/**
+ * @brief Fill a queue information struct with details
+ *
+ * Fetch a queue based on info->packet_queue_idx (should have a valid ID)
+ * and fill the rest of the details in the buffer.
+ *
+ * @param dev the proxy device corresponding to the upper MTD device
+ * @param info a struct containing an ID of a queue and should be filled
+ *             by the function
+ * @return 0 if successful, otherwise negative number as error
+ */
+int proxy_device_fill_queue_info(
+    struct ufedm_proxy_device *dev, struct proxy_shm_queue_info *info);
 
 /**
  * @brief Allocate a shared memory I/O slot

@@ -16,9 +16,9 @@
 #include "proxy_device/eventfd.h"
 #include "proxy_device/io.h"
 
-#include "proxy_eventfd.h"
 #include "proxy_ioctl.h"
-#include "shm_packet.h"
+#include "proxy_queue.h"
+#include "shm_slot.h"
 
 static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 {
@@ -63,7 +63,7 @@ static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 	u64 offset = (u64)vma->vm_pgoff << PAGE_SHIFT;
 	u64 len = vma->vm_end - vma->vm_start;
 
-	u64 max_size = PAGE_ALIGN(get_shm_region_size(&dev->shm_info));
+	u64 max_size = PAGE_ALIGN(dev->shm_info.total_buf_size);
 
 	if (offset + len > max_size) {
 		pr_warn_ratelimited("ufedm_proxy: failed to mmap, (off %llu + "
@@ -157,6 +157,25 @@ static long proxy_chrdev_ioctl(
 		goto exit;
 	}
 
+	case PROXY_IOC_GET_QUEUE_INFO: {
+		struct proxy_shm_queue_info tmp;
+		if (copy_from_user(&tmp, (int __user *)arg,
+			sizeof(struct proxy_shm_queue_info)))
+			return -EFAULT;
+
+		ret = proxy_device_fill_queue_info(prox_dev, &tmp);
+		if (ret < 0)
+			goto exit;
+
+		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp))) {
+			ret = -EINVAL;
+			goto exit;
+		}
+
+		ret = 0;
+		goto exit;
+	}
+
 	case PROXY_IOC_ACK: {
 		struct proxy_ack tmp;
 		if (copy_from_user(
@@ -184,8 +203,8 @@ static long proxy_chrdev_ioctl(
 			return -EFAULT;
 		struct protected_eventfd_ctx *ctx = NULL;
 
-		if (tmp.type != PROXY_EVENTFD_TYPE_WRITE &&
-		    tmp.type != PROXY_EVENTFD_TYPE_READ)
+		if (tmp.type != PROXY_QUEUE_TYPE_READ &&
+		    tmp.type != PROXY_QUEUE_TYPE_WRITE)
 			return -EINVAL;
 
 		ctx = proxy_eventfd_ctx_based_on_type_and_slot(
@@ -207,8 +226,8 @@ static long proxy_chrdev_ioctl(
 			return -EFAULT;
 		struct protected_eventfd_ctx *ctx = NULL;
 
-		if (tmp.type != PROXY_EVENTFD_TYPE_WRITE &&
-		    tmp.type != PROXY_EVENTFD_TYPE_READ)
+		if (tmp.type != PROXY_QUEUE_TYPE_READ &&
+		    tmp.type != PROXY_QUEUE_TYPE_WRITE)
 			return -EINVAL;
 
 		ctx = proxy_eventfd_ctx_based_on_type_and_slot(

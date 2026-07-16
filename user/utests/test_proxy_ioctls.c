@@ -14,8 +14,8 @@
 #include <unistd.h>
 
 #include "proxy_dev.h"
-#include "proxy_eventfd.h"
 #include "proxy_ioctl.h"
+#include "proxy_queue.h"
 
 static int __test_proxy_get_mtd_info_cmd(int fd)
 {
@@ -105,50 +105,50 @@ static void test_proxy_eventfd_register_unregister(int fd)
 
 	struct proxy_register_eventfd reg_efd;
 
-	reg_efd.type = PROXY_EVENTFD_TYPE_WRITE;
+	reg_efd.type = PROXY_QUEUE_TYPE_WRITE;
 	reg_efd.fd = write_efd;
 
 	ret = ioctl(fd, PROXY_IOC_REGISTER_EVENTFD, &reg_efd);
 	if (ret < 0)
 		printf("  FAIL: PROXY_IOC_REGISTER_EVENTFD "
-		       "(PROXY_EVENTFD_TYPE_WRITE): %s\n",
+		       "(PROXY_QUEUE_TYPE_WRITE): %s\n",
 		    strerror(errno));
 	else
 		printf("  OK: PROXY_IOC_REGISTER_EVENTFD "
-		       "(PROXY_EVENTFD_TYPE_WRITE)\n");
+		       "(PROXY_QUEUE_TYPE_WRITE)\n");
 
-	reg_efd.type = PROXY_EVENTFD_TYPE_READ;
+	reg_efd.type = PROXY_QUEUE_TYPE_READ;
 	reg_efd.fd = read_efd;
 
 	ret = ioctl(fd, PROXY_IOC_REGISTER_EVENTFD, &reg_efd);
 	if (ret < 0)
 		printf("  FAIL: PROXY_IOC_REGISTER_EVENTFD "
-		       "(PROXY_EVENTFD_TYPE_READ): %s\n",
+		       "(PROXY_QUEUE_TYPE_READ): %s\n",
 		    strerror(errno));
 	else
 		printf("  OK: PROXY_IOC_REGISTER_EVENTFD "
-		       "(PROXY_EVENTFD_TYPE_READ)\n");
+		       "(PROXY_QUEUE_TYPE_READ)\n");
 
 	struct proxy_unregister_eventfd unreg_efd;
-	unreg_efd.type = PROXY_EVENTFD_TYPE_WRITE;
+	unreg_efd.type = PROXY_QUEUE_TYPE_WRITE;
 	ret = ioctl(fd, PROXY_IOC_UNREGISTER_EVENTFD, &unreg_efd);
 	if (ret < 0)
 		printf("  FAIL: PROXY_IOC_UNREGISTER_EVENTFD "
-		       "(PROXY_EVENTFD_TYPE_WRITE): %s\n",
+		       "(PROXY_QUEUE_TYPE_WRITE): %s\n",
 		    strerror(errno));
 	else
 		printf("  OK: PROXY_IOC_UNREGISTER_EVENTFD "
-		       "(PROXY_EVENTFD_TYPE_WRITE)\n");
+		       "(PROXY_QUEUE_TYPE_WRITE)\n");
 
-	unreg_efd.type = PROXY_EVENTFD_TYPE_READ;
+	unreg_efd.type = PROXY_QUEUE_TYPE_READ;
 	ret = ioctl(fd, PROXY_IOC_UNREGISTER_EVENTFD, &unreg_efd);
 	if (ret < 0)
 		printf("  FAIL: PROXY_IOC_UNREGISTER_EVENTFD "
-		       "(PROXY_EVENTFD_TYPE_READ): %s\n",
+		       "(PROXY_QUEUE_TYPE_READ): %s\n",
 		    strerror(errno));
 	else
 		printf("  OK: PROXY_IOC_UNREGISTER_EVENTFD "
-		       "(PROXY_EVENTFD_TYPE_READ)\n");
+		       "(PROXY_QUEUE_TYPE_READ)\n");
 }
 
 static void test_unknown_ioctl(int fd)
