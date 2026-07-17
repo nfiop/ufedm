@@ -25,7 +25,12 @@ struct simple_nand_page_io_req {
 
 	void *databuf;
 	void *oobbuf;
+
+	struct nand_io_position_params pos_params;
 };
+
+void copy_nand_pos_to_to_io_pos_params(
+    const struct nand_pos *src, struct nand_io_position_params *pos_params);
 
 /**
  * @brief Initialize I/O mechanism and required facility for a proxy device

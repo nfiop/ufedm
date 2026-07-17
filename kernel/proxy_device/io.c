@@ -26,6 +26,16 @@ static const char *shm_queue_type_to_queue_name(enum proxy_queue_type type)
 	return "write queue";
 }
 
+void copy_nand_pos_to_to_io_pos_params(
+    const struct nand_pos *src, struct nand_io_position_params *pos_params)
+{
+	pos_params->target = src->target;
+	pos_params->lun = src->lun;
+	pos_params->plane = src->plane;
+	pos_params->eraseblock = src->eraseblock;
+	pos_params->page = src->page;
+}
+
 int proxy_device_fill_queue_info(
     struct ufedm_proxy_device *dev, struct proxy_shm_queue_info *info)
 {
@@ -55,8 +65,9 @@ static void fill_shm_slot_packet_buffer(struct shared_mem_slot *shm_slot,
 		    (u8 *)shm_slot + page_data_size, req->oobbuf, req->ooblen);
 }
 
-static void __update_shm_slot_header(
-    struct shm_slot_hdr *header, seq_num_t seq_num, u32 len, u32 ooblen)
+static void __update_shm_slot_header(struct shm_slot_hdr *header,
+    seq_num_t seq_num, u32 len, u32 ooblen,
+    const struct nand_io_position_params *pos_params)
 {
 	header->datalen = len;
 	header->ooblen = ooblen;
@@ -69,6 +80,11 @@ static void __update_shm_slot_header(
 	 * In that case we should defer this to be the last transfer we do.
 	 */
 	header->seq_num = seq_num;
+
+	if (pos_params) {
+		memcpy(&header->pos_params, pos_params,
+		    sizeof(struct nand_io_position_params));
+	}
 }
 
 /*
@@ -139,9 +155,12 @@ int proxy_device_ack_request(
 	if (ret < 0)
 		goto exit;
 
-	/* Using ack->base.seq_num is OK, we checked that it's not bogus. */
+	/* Using ack->base.seq_num is OK, we checked that it's not bogus.
+	 * Pass NULL for pos_params - we don't need to update those upon an
+	 * ACK ioctl.
+	 */
 	__update_shm_slot_header(&q->req_pkt_slots[ack->base.slot_num].header,
-	    ack->base.seq_num, ack->retlen, ack->oob_retlen);
+	    ack->base.seq_num, ack->retlen, ack->oob_retlen, NULL);
 
 	complete_request_locked(q, &q->req_pkt_slots[ack->base.slot_num], 0);
 exit:
@@ -465,7 +484,7 @@ void proxy_device_io_slot_pub_new_packet(
 	 * done processing if it can).
 	 */
 	__update_shm_slot_header(&q->req_pkt_slots[slot->slot_idx].header,
-	    seq_num, req->datalen, req->ooblen);
+	    seq_num, req->datalen, req->ooblen, &req->pos_params);
 
 	reinit_completion(&q->req_pkt_slots[slot->slot_idx].done);
 	q->req_pkt_slots[slot->slot_idx].status = 0;
@@ -481,8 +500,8 @@ void proxy_device_io_slot_pub_new_packet(
 	    slot->parentq->parent_dev, q->info.idx, slot->slot_idx);
 
 	fill_shm_slot_packet_buffer(shm_slot, dev->page_data_size, req);
-	__update_shm_slot_header(
-	    &shm_slot->header, seq_num, req->datalen, req->ooblen);
+	__update_shm_slot_header(&shm_slot->header, seq_num, req->datalen,
+	    req->ooblen, &req->pos_params);
 
 	mutex_unlock(&q->lock);
 

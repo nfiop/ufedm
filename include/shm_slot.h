@@ -60,6 +60,19 @@
 
 typedef __u64 seq_num_t;
 
+/* The inspiration for this struct is the `struct nand_pos` inside a
+ * `struct nand_page_io_req`. It was converted from that struct to a
+ * well-defined bit-width fields, so we can ensure ABI correctness on
+ * the shared memory buffer.
+ */
+struct nand_io_position_params {
+	__u32 target;
+	__u32 lun;
+	__u32 plane;
+	__u32 eraseblock;
+	__u32 page;
+};
+
 struct shm_slot_hdr {
 	/* This is a published kernel sequence number, userspace should
 	 * not touch it - it should modify the data as needed, and send
@@ -67,6 +80,11 @@ struct shm_slot_hdr {
 	 * processing.
 	 */
 	seq_num_t seq_num;
+
+	/* These parameters should aid userspace with decision on where
+	 * to place bad block markers, or skip potential bad block, etc.
+	 */
+	struct nand_io_position_params pos_params;
 
 	/* These values specify the amount of data and OOB being
 	 * posted by the kernel to process.

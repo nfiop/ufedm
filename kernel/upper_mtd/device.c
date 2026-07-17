@@ -170,6 +170,10 @@ static int upper_read_oob(
 		if (ret < 0)
 			goto exit;
 
+		// FIXME: Can we integrate copy_nand_pos_to_to_io_pos_params
+		// with proxy_device_io_slot_pub_new_packet tightly together?
+		copy_nand_pos_to_to_io_pos_params(
+		    &iter.req.pos, &simple_req.pos_params);
 		proxy_device_io_slot_pub_new_packet(slot, &simple_req);
 
 		wait_for_completion(&slot->done);
@@ -239,6 +243,11 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 		simple_req.ooblen = iter.req.ooblen;
 		simple_req.databuf = iter.req.databuf.in;
 		simple_req.oobbuf = iter.req.oobbuf.in;
+
+		// FIXME: Can we integrate copy_nand_pos_to_to_io_pos_params
+		// with proxy_device_io_slot_pub_new_packet tightly together?
+		copy_nand_pos_to_to_io_pos_params(
+		    &iter.req.pos, &simple_req.pos_params);
 		proxy_device_io_slot_pub_new_packet(slot, &simple_req);
 
 		wait_for_completion(&slot->done);
