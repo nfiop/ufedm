@@ -65,45 +65,52 @@ done
 # Resolve dependency closure
 # (correct: real file list from modprobe)
 # -----------------------------
-echo "[*] Resolving nandsim dependency tree..."
+find_module_and_dependencies() {
+    MODSRC="/lib/modules/$MODVER"
+    MODDST="$ROOT/lib/modules/$MODVER"
 
-mods=$(modprobe --show-depends nandsim | awk '{print $2}')
-
-MODSRC="/lib/modules/$MODVER"
-MODDST="$ROOT/lib/modules/$MODVER"
-
-for m in $mods; do
-    # # normalize name → path
-    # m="${m%.zst}"
-    # m="${m%.xz}"
-    # m="${m##*/}"
-
-    path=$(modinfo -n "$m" 2>/dev/null || true)
-
-    if [[ -z "$path" ]]; then
-        echo "[!] missing module: $m"
-        continue
+    modprobe --show-depends $1 > /dev/null
+    if [ $? -ne 0 ]; then
+        echo "Error: failed to find $1!" >&2
+        return 1
     fi
 
-    rel="${path#$MODSRC/}"
-    out="$MODDST/$rel"
+    mods=$(modprobe --show-depends $1 | awk '{print $2}')
+    for m in $mods; do
 
-    mkdir -p "$(dirname "$out")"
+        path=$(modinfo -n "$m" 2>/dev/null || true)
 
-    case "$path" in
-        *.zst)
-            echo "[+] decompress $rel"
-            unzstd -c "$path" > "${out%.zst}"
-            ;;
-        *.xz)
-            echo "[+] decompress $rel"
-            xz -dc "$path" > "${out%.xz}"
-            ;;
-        *)
-            cp "$path" "$out"
-            ;;
-    esac
-done
+        if [[ -z "$path" ]]; then
+            echo "[!] missing module: $m"
+            continue
+        fi
+
+        rel="${path#$MODSRC/}"
+        out="$MODDST/$rel"
+
+        mkdir -p "$(dirname "$out")"
+
+        case "$path" in
+            *.zst)
+                echo "[+] decompress $rel"
+                unzstd -c "$path" > "${out%.zst}"
+                ;;
+            *.xz)
+                echo "[+] decompress $rel"
+                xz -dc "$path" > "${out%.xz}"
+                ;;
+            *)
+                cp "$path" "$out"
+                ;;
+        esac
+    done
+}
+
+echo "[*] Resolving nandsim dependency tree..."
+find_module_and_dependencies "nandsim"
+
+echo "[*] Adding VirtIO net driver if possible..."
+find_module_and_dependencies "virtio_net"
 
 # -----------------------------
 # init script
@@ -111,9 +118,29 @@ done
 cat > "$ROOT/init" <<EOF
 #!/bin/sh
 
+try_setup_network() {
+    ip link set lo up
+
+    modprobe virtio_net
+
+    # Check if the exit status of the previous command is NOT 0
+    if [ $? -ne 0 ]; then
+        echo "Error: modprobe virtio_net failed!" >&2
+        return 1
+    fi
+
+    ip link set eth0 up
+    udhcpc -i eth0 -s /udhcpc.script
+    telnetd -l /bin/sh
+
+    echo "Network should be up now..."
+}
+
 mount -t devtmpfs devtmpfs /dev
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
+mkdir -p /dev/pts
+mount -t devpts none /dev/pts
 
 echo "[*] Running depmod..."
 depmod -b /lib/modules $MODVER
@@ -122,12 +149,19 @@ echo "[*] Loading nandsim..."
 modprobe nandsim first_id_byte=0x20 second_id_byte=0xaa third_id_byte=0x00 \
 fourth_id_byte=0x15 pagesize=2048 oobpagesize=64 eraseblock_size=131072 || echo "nandsim failed"
 
+echo "[*] Loading networking... (virtio-net, as best effort)"
+try_setup_network
+
+
 echo "[*] Ready"
 echo "[*] Run poweroff -f to shutdown!"
 exec /bin/sh
 EOF
 
 chmod +x "$ROOT/init"
+
+cp -v $PWD/user/qemu_vm.udhcpc.script $ROOT/udhcpc.script
+chmod +x "$ROOT/udhcpc.script"
 
 # -----------------------------
 # build initramfs
@@ -154,4 +188,6 @@ exec qemu-system-x86_64 \
     -initrd "$WORK/initramfs.cpio.gz" \
     -append "console=ttyS0 rdinit=/init nokaslr" \
     -virtfs local,path="$PWD/build",mount_tag=build,security_model=none,id=buildfs \
-    -nographic
+    -nographic \
+    -netdev user,id=net0,hostfwd=tcp::2222-:23 \
+    -device virtio-net-pci,netdev=net0
