@@ -38,23 +38,9 @@ int proxy_device_fill_queue_info(
 }
 
 static void fill_shm_slot_packet_buffer(
-    struct proxy_io_slot *slot, const struct simple_nand_page_io_req *req)
+    struct shared_mem_slot *shm_slot, size_t page_data_size,
+	const struct simple_nand_page_io_req *req)
 {
-	struct proxy_requests_queue *q = slot->parentq;
-	struct ufedm_proxy_device *dev = q->parent_dev;
-	struct shared_mem_slot *shm_slot;
-
-	BUG_ON(req->ooblen > dev->page_oob_size);
-	BUG_ON(req->datalen > dev->page_data_size);
-
-	/* This is where we copy the data + OOB + packet header
-	 * to the shared memory interface. From this point onwards, it
-	 * is visible to userspace that there's a new packet to process.
-	 */
-
-	shm_slot = proxy_device_queue_and_slot_to_buf(
-	    q->parent_dev, q->info.idx, slot->slot_idx);
-
 	/* If we have a NULL pointer in either databuf or
 	 * oobbuf, it means the callee (in the upper MTD layer)
 	 * never had such buffers in its initial request in the
@@ -63,10 +49,10 @@ static void fill_shm_slot_packet_buffer(
 	 */
 
 	if (req->databuf != NULL)
-		memcpy(shm_slot->buf, req->databuf, req->datalen);
+		memcpy(shm_slot, req->databuf, req->datalen);
 
 	if (req->oobbuf != NULL)
-		memcpy((u8 *)shm_slot->buf + dev->page_data_size, req->oobbuf,
+		memcpy((u8 *)shm_slot + page_data_size, req->oobbuf,
 		    req->ooblen);
 }
 
@@ -384,10 +370,20 @@ int init_io_queues(struct ufedm_proxy_device *dev)
 	dev->writeq->info.type = PROXY_QUEUE_TYPE_WRITE;
 	dev->writeq->info.slots_count = PROXY_SLOTS_COUNT_PER_QUEUE;
 
+	// FIXME: This is hardcoded. Find a way to not do this.
+	dev->writeq->info.mem_offset = 0;
+	dev->writeq->info.mem_len = dev->writeq->info.slots_count *
+		dev->shm_info.slot_size;
+
 	dev->readq = &dev->queues[1];
 	dev->readq->info.idx = 1;
 	dev->readq->info.type = PROXY_QUEUE_TYPE_READ;
 	dev->readq->info.slots_count = PROXY_SLOTS_COUNT_PER_QUEUE;
+
+	// FIXME: This is hardcoded. Find a way to not do this.
+	dev->readq->info.mem_offset = dev->writeq->info.mem_len;
+	dev->readq->info.mem_len = dev->readq->info.slots_count *
+		dev->shm_info.slot_size;
 
 	ret = init_proxy_requests_queue(dev, dev->writeq);
 	if (ret != 0)
@@ -455,6 +451,11 @@ void proxy_device_io_slot_pub_new_packet(
 {
 	seq_num_t seq_num;
 	struct proxy_requests_queue *q = slot->parentq;
+	struct ufedm_proxy_device *dev = q->parent_dev;
+	struct shared_mem_slot *shm_slot;
+
+	BUG_ON(req->ooblen > dev->page_oob_size);
+	BUG_ON(req->datalen > dev->page_data_size);
 
 	mutex_lock(&q->lock);
 	seq_num = (u64)atomic64_inc_return(&q->next_seq_id);
@@ -473,9 +474,15 @@ void proxy_device_io_slot_pub_new_packet(
 	slot->state = PROXY_IO_SLOT_STATE_PENDING_USER;
 	q->req_pkt_slots[slot->slot_idx].started_time = ktime_get();
 
-	fill_shm_slot_packet_buffer(slot, req);
+	/* This is where we copy the data + OOB + packet header
+	 * to the shared memory interface. From this point onwards, it
+	 * is visible to userspace that there's a new packet to process.
+	 */
+	shm_slot = proxy_device_queue_and_slot_to_buf(
+	    slot->parentq->parent_dev, q->info.idx, slot->slot_idx);
 
-	__update_shm_slot_header(&q->req_pkt_slots[slot->slot_idx].header,
+	fill_shm_slot_packet_buffer(shm_slot, dev->page_data_size, req);
+	__update_shm_slot_header(&shm_slot->header,
 	    seq_num, req->datalen, req->ooblen);
 
 	mutex_unlock(&q->lock);

@@ -134,42 +134,19 @@ static void destroy_shm_mapping(struct ufedm_shm_mapping *mapping)
 int proxy_device_init_shared_memory(struct ufedm_proxy_device *dev)
 {
 	int ret;
-	struct ufedm_shm_mapping *mapping = &dev->shm_mapping;
 
 	ret = create_shm_mapping(dev);
 	if (ret < 0) {
 		goto exit;
 	}
 
-	mapping->queues_map_entries =
-	    kvzalloc(sizeof(struct ufedm_shm_queue_mapping *) *
-			 dev->shm_info.queues_count,
-		GFP_KERNEL);
-	if (mapping->queues_map_entries == NULL) {
-		ret = -ENOMEM;
-		goto revert_shm_mapping_creation;
-	}
-
-	// FIXME: Make this nicer somehow
-
-	mapping->queues_map_entries[0].offset = 0;
-	mapping->queues_map_entries[0].len =
-	    dev->queues[0].info.slots_count * dev->shm_info.slot_size;
-
-	mapping->queues_map_entries[1].offset =
-	    mapping->queues_map_entries[0].len;
-	mapping->queues_map_entries[1].len =
-	    dev->queues[1].info.slots_count * dev->shm_info.slot_size;
-
 	ret = shm_map_kernel(dev);
 	if (ret < 0) {
-		goto revert_queues_map_creation;
+		goto revert_shm_mapping_creation;
 	}
 
 	return 0;
 
-revert_queues_map_creation:
-	kvfree(dev->shm_mapping.queues_map_entries);
 revert_shm_mapping_creation:
 	destroy_shm_mapping(&dev->shm_mapping);
 exit:
@@ -180,7 +157,6 @@ void proxy_device_destroy_shared_memory(struct ufedm_shm_mapping *mapping)
 {
 	remove_kernel_mapping(mapping);
 	revoke_user_shm_mapping(mapping);
-	kvfree(mapping->queues_map_entries);
 	destroy_shm_mapping(mapping);
 }
 
@@ -191,13 +167,12 @@ struct shared_mem_slot *proxy_device_queue_and_slot_to_buf(
 	if (queue_idx >= dev->shm_info.queues_count)
 		return NULL;
 
-	struct ufedm_shm_queue_mapping *queue_mapping =
-	    &mapping->queues_map_entries[queue_idx];
+	struct proxy_requests_queue *q = &dev->queues[queue_idx];
 
-	if (slot_idx * dev->shm_info.slot_size >= queue_mapping->len)
+	if (slot_idx * dev->shm_info.slot_size >= q->info.mem_len)
 		return NULL;
 
-	u8 *addr = (u8 *)mapping->kaddr + queue_mapping->offset +
+	u8 *addr = (u8 *)mapping->kaddr +  q->info.mem_offset +
 		   (slot_idx * dev->shm_info.slot_size);
 	return (struct shared_mem_slot *)addr;
 }

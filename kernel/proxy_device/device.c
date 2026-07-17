@@ -12,19 +12,24 @@
 static void proxy_device_fill_shm_info(
     struct ufedm_proxy_device *dev, struct proxy_shm_info *p)
 {
-	size_t queue_idx;
 	p->proto_ver = 0;
 	p->slot_size = sizeof(struct shared_mem_slot) + dev->page_data_size +
 		       dev->page_oob_size;
 	p->queues_count = PROXY_MAX_QUEUES_COUNT;
 
+	memset(p->reserved, 0, sizeof(__u32) * 6);
+}
+
+static void proxy_device_set_total_shm_buf_size(
+    struct ufedm_proxy_device *dev, struct proxy_shm_info *p)
+{
+	size_t queue_idx;
 	p->total_buf_size = 0;
 
 	for (queue_idx = 0; queue_idx < p->queues_count; queue_idx++) {
 		p->total_buf_size +=
 		    dev->queues[queue_idx].info.slots_count * p->slot_size;
 	}
-	memset(p->reserved, 0, sizeof(__u32) * 6);
 }
 
 int proxy_device_create(struct ufedm_proxy_device *dev)
@@ -33,13 +38,15 @@ int proxy_device_create(struct ufedm_proxy_device *dev)
 
 	mutex_init(&dev->shm_mapping.lock);
 
+	proxy_device_fill_shm_info(dev, &dev->shm_info);
+
 	ret = init_io_queues(dev);
 	if (ret < 0)
 		goto exit;
 
 	// Now that we know the sizes of each queue, we can fill this
-	// struct safely.
-	proxy_device_fill_shm_info(dev, &dev->shm_info);
+	// field safely.
+	proxy_device_set_total_shm_buf_size(dev, &dev->shm_info);
 	BUG_ON(dev->shm_info.total_buf_size == 0);
 
 	ret = proxy_device_init_shared_memory(dev);

@@ -149,11 +149,6 @@ struct proxy_requests_queue {
 	struct mutex lock;
 };
 
-struct ufedm_shm_queue_mapping {
-	u32 offset;
-	u32 len;
-};
-
 struct ufedm_shm_mapping {
 	/* We allocate a shmem file to get a concise address_space mapping,
 	 * which would be used when doing mmap() on this device for the
@@ -166,10 +161,6 @@ struct ufedm_shm_mapping {
 	struct mutex lock;
 	struct file *filp;
 	bool revoked;
-
-	// The size of this map is derived from
-	// ufedm_proxy_device::shm_info::queues_count
-	struct ufedm_shm_queue_mapping *queues_map_entries;
 
 	/* This part of the struct is used as metadata for keeping a memory
 	 * window for the kernel to submit the workload via the shm interface.

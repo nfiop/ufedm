@@ -37,6 +37,9 @@ struct proxy_shm_queue_info {
 
 	__u8 type;
 	__u16 slots_count;
+
+	__u32 mem_offset;
+	__u32 mem_len;
 };
 
 /* It could probably be quite nice to define a struct of
