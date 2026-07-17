@@ -430,7 +430,7 @@ void destroy_io_queues(struct ufedm_proxy_device *dev)
 int proxy_device_get_slot(struct ufedm_proxy_device *dev,
     enum nand_page_io_req_type type, struct proxy_io_slot **slotp)
 {
-	BUG_ON(type != NAND_PAGE_READ && type != NAND_PAGE_READ);
+	BUG_ON(type != NAND_PAGE_READ && type != NAND_PAGE_WRITE);
 
 	int slot_num;
 	struct proxy_requests_queue *q;
