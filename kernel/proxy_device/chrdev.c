@@ -92,6 +92,7 @@ static int proxy_chrdev_mmap_prepare(struct vm_area_desc *desc)
 		return -EOPNOTSUPP;
 	}
 
+	desc->vm_file = dev->shm_mapping.filp;
 	ret = dev->shm_mapping.filp->f_op->mmap_prepare(desc);
 
 	mutex_unlock(&dev->shm_mapping.lock);
@@ -146,6 +147,8 @@ static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 		mutex_unlock(&dev->shm_mapping.lock);
 		return -EOPNOTSUPP;
 	}
+
+	vma_set_file(vma, dev->shm_mapping.filp);
 
 	ret = dev->shm_mapping.filp->f_op->mmap(dev->shm_mapping.filp, vma);
 
