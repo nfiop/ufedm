@@ -6,6 +6,20 @@
 #ifndef __DEFS_H
 #define __DEFS_H
 
+#ifndef __KERNEL__
+#include <stdint.h> /* uint32_t, uint64_t */
+#include <sys/types.h>
+#endif
+
+#include <linux/types.h>
+
+#ifndef __KERNEL__
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+#endif
+
 // 32 is a reasonable number for MTD partitions' count on one
 // system. It can be easily changed if so desired.
 #define PROXY_MAX_DEVICE_COUNT 32
@@ -18,21 +32,5 @@
 // For now, this value is hardcoded, so don't use it except the
 // very few places where it should be (like in the kernel!).
 #define PROXY_SLOTS_COUNT_PER_QUEUE 20
-
-// Detect whether we are compiling in the kernel or userspace
-#ifdef __KERNEL__
-#include <linux/types.h> /* __u32, __u64 */
-#else
-#include <stdint.h> /* uint32_t, uint64_t */
-typedef uint8_t __u8;
-typedef uint16_t __u16;
-typedef uint32_t __u32;
-typedef uint64_t __u64;
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-#endif
 
 #endif
