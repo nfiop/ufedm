@@ -172,7 +172,7 @@ struct shared_mem_slot *proxy_device_queue_and_slot_to_buf(
 	if (slot_idx * dev->shm_info.slot_size >= q->info.mem_len)
 		return NULL;
 
-	u8 *addr = (u8 *)mapping->kaddr +  q->info.mem_offset +
+	u8 *addr = (u8 *)mapping->kaddr + q->info.mem_offset +
 		   (slot_idx * dev->shm_info.slot_size);
 	return (struct shared_mem_slot *)addr;
 }

@@ -37,9 +37,8 @@ int proxy_device_fill_queue_info(
 	return 0;
 }
 
-static void fill_shm_slot_packet_buffer(
-    struct shared_mem_slot *shm_slot, size_t page_data_size,
-	const struct simple_nand_page_io_req *req)
+static void fill_shm_slot_packet_buffer(struct shared_mem_slot *shm_slot,
+    size_t page_data_size, const struct simple_nand_page_io_req *req)
 {
 	/* If we have a NULL pointer in either databuf or
 	 * oobbuf, it means the callee (in the upper MTD layer)
@@ -52,8 +51,8 @@ static void fill_shm_slot_packet_buffer(
 		memcpy(shm_slot, req->databuf, req->datalen);
 
 	if (req->oobbuf != NULL)
-		memcpy((u8 *)shm_slot + page_data_size, req->oobbuf,
-		    req->ooblen);
+		memcpy(
+		    (u8 *)shm_slot + page_data_size, req->oobbuf, req->ooblen);
 }
 
 static void __update_shm_slot_header(
@@ -372,8 +371,8 @@ int init_io_queues(struct ufedm_proxy_device *dev)
 
 	// FIXME: This is hardcoded. Find a way to not do this.
 	dev->writeq->info.mem_offset = 0;
-	dev->writeq->info.mem_len = dev->writeq->info.slots_count *
-		dev->shm_info.slot_size;
+	dev->writeq->info.mem_len =
+	    dev->writeq->info.slots_count * dev->shm_info.slot_size;
 
 	dev->readq = &dev->queues[1];
 	dev->readq->info.idx = 1;
@@ -382,8 +381,8 @@ int init_io_queues(struct ufedm_proxy_device *dev)
 
 	// FIXME: This is hardcoded. Find a way to not do this.
 	dev->readq->info.mem_offset = dev->writeq->info.mem_len;
-	dev->readq->info.mem_len = dev->readq->info.slots_count *
-		dev->shm_info.slot_size;
+	dev->readq->info.mem_len =
+	    dev->readq->info.slots_count * dev->shm_info.slot_size;
 
 	ret = init_proxy_requests_queue(dev, dev->writeq);
 	if (ret != 0)
@@ -482,8 +481,8 @@ void proxy_device_io_slot_pub_new_packet(
 	    slot->parentq->parent_dev, q->info.idx, slot->slot_idx);
 
 	fill_shm_slot_packet_buffer(shm_slot, dev->page_data_size, req);
-	__update_shm_slot_header(&shm_slot->header,
-	    seq_num, req->datalen, req->ooblen);
+	__update_shm_slot_header(
+	    &shm_slot->header, seq_num, req->datalen, req->ooblen);
 
 	mutex_unlock(&q->lock);
 
