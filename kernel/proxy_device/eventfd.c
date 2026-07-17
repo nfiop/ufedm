@@ -64,11 +64,10 @@ void proxy_eventfd_ctx_unregister(struct protected_eventfd_ctx *ctx)
 
 void proxy_eventfd_ctx_notify(struct protected_eventfd_ctx *ctx)
 {
-	struct eventfd_ctx *efd_ctx = NULL;
 	spin_lock(&ctx->lock);
 
 	if (ctx->efd) {
-		eventfd_signal(efd_ctx);
+		eventfd_signal(ctx->efd);
 	}
 
 	spin_unlock(&ctx->lock);
