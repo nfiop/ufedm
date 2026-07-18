@@ -102,6 +102,13 @@ struct shm_slot_hdr {
 	 * proceed to submit its own bytes in such section - this could
 	 * lead to a I/O failure or just a warning, depending on the
 	 * actual configuration.
+	 *
+	 * It should be noted, that for most conventional write requests,
+	 * an OOB len is set by default to zero, because we disallow
+	 * the user to explicitly put its OOB bytes where it wants without
+	 * checking bounds (i.e. see requirement of MTD_OPS_AUTO_OOB in
+	 * `ensure_safe_environment` function in `kernel/upper_mtd/device.c`
+	 * to learn more about that).
 	 */
 	__u32 datalen;
 	__u32 ooblen;
