@@ -137,3 +137,11 @@ some not without putting some effort on your side:
 
   See `src/upper_mtd/backend.c` for more details on the check we do.
 
+- After a write to a page, new data must written after an eraseblock
+  erasure. We cannot allow skipping this, and when I tested on a `nandsim`
+  simulation in the QEMU VM, it still required me to run `flash_eraseall`
+  on the backing MTD device.
+
+  IMPORTANT: Please take a note of the bad block markers in devices,
+  because many vendors mark them as the chip is manufactured, so the
+  bad block marks can be gone if not erasing carefully.
