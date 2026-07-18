@@ -335,7 +335,7 @@ int create_proxy_dev_queue_state(struct proxy_device_state *dev_state,
 	       state->info.type == PROXY_QUEUE_TYPE_WRITE);
 
 	shared_mem_buf =
-	    (u8 *)dev_state->shared_mem_buf + state->info.mem_offset;
+	    ((u8 *)dev_state->shared_mem_buf) + state->info.mem_offset;
 	if (state->info.type == PROXY_QUEUE_TYPE_READ)
 		ret = create_threads(state, shared_mem_buf,
 		    dev_state->shm_info.slot_size, func_ops->read,
