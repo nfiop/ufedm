@@ -194,6 +194,9 @@ chmod +x "$ROOT/udhcpc.script"
 mkdir -p $ROOT/bin
 copy_binary_with_deps nanddump "$ROOT"
 copy_binary_with_deps nandwrite "$ROOT"
+copy_binary_with_deps flashcp "$ROOT"
+copy_binary_with_deps flash_eraseall "$ROOT"
+copy_binary_with_deps flash_erase "$ROOT"
 
 # -----------------------------
 # build initramfs
