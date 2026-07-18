@@ -60,6 +60,7 @@ static int proxy_chrdev_release(struct inode *inode, struct file *filp)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 static int proxy_chrdev_mmap_prepare(struct vm_area_desc *desc)
 {
+	int ret;
 	struct file *filp = desc->file;
 	struct ufedm_proxy_device *dev = filp->private_data;
 	u64 max_size = PAGE_ALIGN(dev->shm_info.total_buf_size);
@@ -68,8 +69,6 @@ static int proxy_chrdev_mmap_prepare(struct vm_area_desc *desc)
 	if (!dev->shm_mapping.filp->f_op->mmap_prepare) {
 		return -EOPNOTSUPP;
 	}
-
-	desc->vm_file = dev->shm_mapping.filp;
 
 	if (len > max_size) {
 		return -EINVAL;
@@ -92,8 +91,19 @@ static int proxy_chrdev_mmap_prepare(struct vm_area_desc *desc)
 		return -EIO;
 	}
 
+	desc->vm_file = dev->shm_mapping.filp;
+	/*
+	 * According to (very nice) people in the Linux kernel mailing list,
+	 * I need to donate a ref if I replace the vm_file with something else.
+	 * In case of failure somewhere else, the memory subsystem will ensure
+	 * to drop it without me worrying about it.
+	 */
+	get_file(dev->shm_mapping.filp);
+
+	ret = desc->vm_file->f_op->mmap_prepare(desc);
+
 	mutex_unlock(&dev->shm_mapping.lock);
-	return dev->shm_mapping.filp->f_op->mmap_prepare(desc);
+	return ret;
 }
 #else
 static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
