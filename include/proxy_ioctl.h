@@ -63,7 +63,7 @@ struct proxy_ack {
 	 * to the actual page data region size on the flash chip.
 	 */
 	__u32 retlen;
-	/* Data region that is returned. For most cases should be equal
+	/* OOB region that is returned. For most cases should be equal
 	 * to the actual page OOB region size on the flash chip.
 	 */
 	__u32 oob_retlen;
