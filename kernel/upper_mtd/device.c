@@ -98,6 +98,7 @@ static int upper_read_oob(
 	struct nand_io_iter iter;
 	struct nand_device *nand;
 	struct mtd_info *backend;
+	struct mtd_oob_ops raw_ops;
 
 	ret = ensure_safe_environment(mtd, ops, &proxy_dev, &dev);
 	if (ret < 0)
@@ -140,7 +141,8 @@ static int upper_read_oob(
 	    .datalen = proxy_dev->page_data_size,
 	    .ooblen = proxy_dev->page_oob_size,
 	    .databuf = slot->shadow_data_and_oob_buf,
-	    .oobbuf = slot->shadow_data_and_oob_buf,
+	    .oobbuf = ((u8 *)slot->shadow_data_and_oob_buf) +
+		      proxy_dev->page_data_size,
 	};
 
 	BUG_ON(slot->shadow_data_and_oob_buf_size !=
@@ -155,13 +157,12 @@ static int upper_read_oob(
 		memset(slot->shadow_data_and_oob_buf, 0xFF,
 		    proxy_dev->page_data_size + proxy_dev->page_data_size);
 
-		struct mtd_oob_ops raw_ops;
 		raw_ops.mode = MTD_OPS_RAW;
 		raw_ops.len = proxy_dev->page_data_size;
 		raw_ops.ooblen = proxy_dev->page_oob_size;
-		raw_ops.datbuf = (u8 *)slot->shadow_data_and_oob_buf;
-		raw_ops.oobbuf = (u8 *)slot->shadow_data_and_oob_buf +
-				 proxy_dev->page_data_size;
+		raw_ops.ooboffs = 0;
+		raw_ops.datbuf = simple_req.databuf;
+		raw_ops.oobbuf = simple_req.oobbuf;
 
 		/* We can also fail right here as well.
 		 * Common reasons are I/O issues in hardware, etc.
