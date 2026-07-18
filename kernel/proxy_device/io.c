@@ -50,6 +50,8 @@ int proxy_device_fill_queue_info(
 static void fill_shm_slot_packet_buffer(struct shared_mem_slot *shm_slot,
     size_t page_data_size, const struct simple_nand_page_io_req *req)
 {
+	u8 *shm_slot_buf = (u8 *)shm_slot->buf;
+
 	/* If we have a NULL pointer in either databuf or
 	 * oobbuf, it means the callee (in the upper MTD layer)
 	 * never had such buffers in its initial request in the
@@ -57,12 +59,13 @@ static void fill_shm_slot_packet_buffer(struct shared_mem_slot *shm_slot,
 	 * memset(..., 0xFF, len) here.
 	 */
 
-	if (req->databuf != NULL)
-		memcpy(shm_slot, req->databuf, req->datalen);
+	if (req->databuf != NULL) {
+		memcpy(shm_slot_buf, req->databuf, req->datalen);
+	}
 
-	if (req->oobbuf != NULL)
-		memcpy(
-		    (u8 *)shm_slot + page_data_size, req->oobbuf, req->ooblen);
+	if (req->oobbuf != NULL) {
+		memcpy(shm_slot_buf + page_data_size, req->oobbuf, req->ooblen);
+	}
 }
 
 static void __update_shm_slot_header(struct shm_slot_hdr *header,
