@@ -60,18 +60,23 @@ static int proxy_chrdev_release(struct inode *inode, struct file *filp)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 static int proxy_chrdev_mmap_prepare(struct vm_area_desc *desc)
 {
-	int ret;
 	struct file *filp = desc->file;
 	struct ufedm_proxy_device *dev = filp->private_data;
 	u64 max_size = PAGE_ALIGN(dev->shm_info.total_buf_size);
 	unsigned long len = desc->end - desc->start;
+
+	if (!dev->shm_mapping.filp->f_op->mmap_prepare) {
+		return -EOPNOTSUPP;
+	}
+
+	desc->vm_file = dev->shm_mapping.filp;
 
 	if (len > max_size) {
 		return -EINVAL;
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
-	if (!(desc->vma_flags & mk_vma_flags(VM_SHARED))) {
+	if (!vma_flags_test(&desc->vma_flags, VMA_SHARED_BIT)) {
 #else
 	if (!(desc->vm_flags & VM_SHARED)) {
 #endif
@@ -87,16 +92,8 @@ static int proxy_chrdev_mmap_prepare(struct vm_area_desc *desc)
 		return -EIO;
 	}
 
-	if (!dev->shm_mapping.filp->f_op->mmap_prepare) {
-		mutex_unlock(&dev->shm_mapping.lock);
-		return -EOPNOTSUPP;
-	}
-
-	desc->vm_file = dev->shm_mapping.filp;
-	ret = dev->shm_mapping.filp->f_op->mmap_prepare(desc);
-
 	mutex_unlock(&dev->shm_mapping.lock);
-	return ret;
+	return dev->shm_mapping.filp->f_op->mmap_prepare(desc);
 }
 #else
 static int proxy_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
