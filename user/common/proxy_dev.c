@@ -119,8 +119,6 @@ static void *worker_thread_func(void *arg)
 	struct proxy_nack nack;
 	struct proxy_ack ack;
 
-	size_t retlen = 0;
-	size_t oob_retlen = 0;
 	int rc = 0;
 
 	hdr = (struct shm_slot_hdr *)&state->slot->header;
@@ -168,8 +166,8 @@ static void *worker_thread_func(void *arg)
 			ack.base.queue_idx = state->queue_idx;
 			ack.base.slot_num = state->slot_idx;
 			ack.base.seq_num = hdr->seq_num;
-			ack.retlen = retlen;
-			ack.oob_retlen = oob_retlen;
+			ack.retlen = context_res.data_retlen;
+			ack.oob_retlen = context_res.oob_retlen;
 			rc = ioctl(state->proxy_device_fd, PROXY_IOC_ACK, &ack);
 			if (rc < 0) {
 				rc = errno;
