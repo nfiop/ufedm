@@ -103,10 +103,6 @@ some not without putting some effort on your side:
   For these chips, we probably can't do much anyway without writing with
   ECC & data layout in the way they **want** anyway.
 
-- We currently support one read and write requests at a time, essentially
-  serializing the entire I/O operation on the flash chip.
-  Whether that's bad or not is up to discussion and performance tests.
-
 - We rely on a raw NAND flash controller. As ChatGPT said - 
 
   "The driver will attempt to minimize transformation of data/OOB as 
