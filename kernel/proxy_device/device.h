@@ -102,7 +102,7 @@ struct proxy_io_slot {
 	 * buffer.
 	 */
 	size_t shadow_data_and_oob_buf_size;
-	void *shadow_data_and_oob_buf;
+	u8 *shadow_data_and_oob_buf;
 
 	/* When we set up this I/O request, we add it to the allocated list
 	 * so a watchdog kthread can NACK this if a timeout triggers while
