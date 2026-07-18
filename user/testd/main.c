@@ -4,6 +4,7 @@
  */
 
 #include <asm-generic/errno.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -34,9 +35,10 @@ extern int ecc_sw_hamming_correct(unsigned char *buf, unsigned char *read_ecc,
 static int s_errno_rc;
 
 struct program_params {
-	bool verbose;
+	int verbose;
 	bool timeout;
 	bool exit_on_error;
+	bool exit_on_nack;
 	unsigned int nack_reads_errno;
 	unsigned int nack_writes_errno;
 	bool inject_read_errors;
@@ -52,10 +54,29 @@ static struct proxy_device_state state;
 static struct option long_options[] = {{"help", no_argument, 0, 'h'},
     {"verbose", no_argument, 0, 'v'}, {"timeout", no_argument, 0, 't'},
     {"exit-on-error", no_argument, 0, 'E'},
-    {"nack-writes", required_argument, 0, 'N'},
-    {"nack-reads", required_argument, 0, 'W'},
+    {"exit-on-nack", no_argument, 0, 'e'},
+    {"nack-writes", required_argument, 0, 'W'},
+    {"nack-reads", required_argument, 0, 'R'},
     {"inject-read-errors", no_argument, 0, 'I'},
     {"inject-write-errors", no_argument, 0, 'w'}, {0, 0, 0, 0}};
+
+#define ANSWER_NACK_WITH_RC(rc)                                                \
+	do {                                                                   \
+		if (prog_params.exit_on_nack)                                  \
+			context_res->had_fatal_stop = true;                    \
+		return ANSWER_NACK;                                            \
+	} while (0)
+
+#define VLOG(level, out, fmt, ...)                                             \
+	do {                                                                   \
+		if (prog_params.verbose >= (level))                            \
+			fprintf((out), fmt, ##__VA_ARGS__);                    \
+	} while (0)
+#define VHEXDUMP(level, out, buf, len)                                         \
+	do {                                                                   \
+		if (prog_params.verbose >= (level))                            \
+			hexdump((out), buf, len);                              \
+	} while (0)
 
 static void sigint_handler(int sig)
 {
@@ -69,19 +90,53 @@ static void print_help(const char *prog)
 
 	printf("Options:\n");
 	printf("  -h, --help                     Show help.\n");
-	printf("  -v, --verbose                  Enable verbose output.\n");
+	printf("  -v, --verbose                  Increase verbose output "
+	       "level.\n");
 	printf("  -t, --timeout                  Don't answer with ioctls at "
 	       "all.\n");
+	printf("  -e, --exit-on-nack             Exit on first real NACK.\n");
 	printf("  -E, --exit-on-error            Exit on first error.\n");
-	printf("  -N, --nack-writes <errno>      Answer with NACKs with a "
+	printf("  -W, --nack-writes <errno>      Answer with NACKs with a "
 	       "specific errno for write requests.\n");
-	printf("  -N, --nack-reads <errno>      Answer with NACKs with a "
+	printf("  -R, --nack-reads <errno>      Answer with NACKs with a "
 	       "specific errno for read requests.\n");
+}
+
+void hexdump(FILE *out, const void *buf, size_t len)
+{
+	const unsigned char *p = buf;
+	size_t i, j;
+
+	for (i = 0; i < len; i += 16) {
+		fprintf(out, "%08zx  ", i);
+
+		/* Hex bytes */
+		for (j = 0; j < 16; j++) {
+			if (i + j < len)
+				fprintf(out, "%02x ", p[i + j]);
+			else
+				fprintf(out, "   ");
+
+			if (j == 7)
+				fprintf(out, " ");
+		}
+
+		fprintf(out, " |");
+
+		/* ASCII representation */
+		for (j = 0; j < 16 && i + j < len; j++) {
+			unsigned char c = p[i + j];
+
+			fputc(isprint(c) ? c : '.', out);
+		}
+
+		fprintf(out, "|\n");
+	}
 }
 
 static void fatal_stop_callback(pid_t tid, int err)
 {
-	fprintf(stderr, "Fatal error, TID %d, error: %d, %s\n", tid, err,
+	VLOG(2, stderr, "Fatal error, TID %d, error: %d, %s\n", tid, err,
 	    strerror(err));
 	atomic_store(&stop, true);
 }
@@ -97,16 +152,16 @@ static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
 {
 	int ret;
 	size_t ecc_step_idx;
+	size_t oob_retlen = 2;
 	size_t oob_offset =
 	    state.mtd_info.flash_page_size - state.mtd_info.flash_oob_size;
 
 	// Get to the OOB region + 2 bytes offset of bad block marker.
-	u8 *eccbuf = (u8 *)entire_page_buf + (oob_offset) + 2;
+	u8 *eccbuf = ((u8 *)entire_page_buf) + (oob_offset) + 2;
 	u8 *databuf = (u8 *)entire_page_buf;
 
 	if (!verify_has_enough_oob_storage_for_hamming_ecc(hdr->datalen)) {
-		context_res->errno_rc = -EOPNOTSUPP;
-		return ANSWER_NACK;
+		ANSWER_NACK_WITH_RC(-EOPNOTSUPP);
 	}
 
 	// Mark two bytes for bad block marker (0xFF)
@@ -119,16 +174,23 @@ static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
 	    ecc_step_idx++) {
 		ret = ecc_sw_hamming_calculate(databuf, 256, ecccalc, false);
 		if (ret < 0) {
-			context_res->errno_rc = ret;
-			return ANSWER_NACK;
+			ANSWER_NACK_WITH_RC(ret);
 		}
 		memcpy(eccbuf, ecccalc, 3);
+
+		VLOG(2, stderr, "%s: Data dump:\n", __func__);
+		VHEXDUMP(2, stderr, databuf, 256);
+		VLOG(2, stderr, "%s: calculated ECC is:\n", __func__);
+		VHEXDUMP(2, stderr, ecccalc, 3);
 		eccbuf += 3;
 		databuf += 256;
+		oob_retlen += 3;
 	}
 
+	VLOG(2, stderr, "%s: returned data length - %d, oob length - %zu\n",
+	    __func__, hdr->datalen, oob_retlen);
 	context_res->data_retlen = hdr->datalen;
-	context_res->oob_retlen = hdr->ooblen;
+	context_res->oob_retlen = oob_retlen;
 	context_res->errno_rc = 0;
 	return ANSWER_ACK;
 }
@@ -142,31 +204,47 @@ static transform_answer_t hamming_read_process(const struct shm_slot_hdr *hdr,
 	    state.mtd_info.flash_page_size - state.mtd_info.flash_oob_size;
 
 	// Get to the OOB region + 2 bytes offset of bad block marker.
-	u8 *eccbuf = (u8 *)entire_page_buf + (oob_offset) + 2;
+	u8 *eccbuf = ((u8 *)entire_page_buf) + (oob_offset) + 2;
 	u8 *databuf = (u8 *)entire_page_buf;
 
-	if (!verify_has_enough_oob_storage_for_hamming_ecc(hdr->datalen))
-		return ANSWER_NACK;
+	if (!verify_has_enough_oob_storage_for_hamming_ecc(hdr->datalen)) {
+		ANSWER_NACK_WITH_RC(-EOPNOTSUPP);
+	}
+
+	VLOG(3, stderr, "%s: Full page dump, data_len %u, oob_len: %u:\n",
+	    __func__, hdr->datalen, hdr->ooblen);
+	VLOG(3, stderr, "%s: MTD info - full page size %u, oob_len: %u:\n",
+	    __func__, state.mtd_info.flash_page_size,
+	    state.mtd_info.flash_oob_size);
+	VHEXDUMP(3, stderr, databuf, hdr->datalen + hdr->ooblen);
 
 	unsigned char ecccalc[3];
 	for (ecc_step_idx = 0; ecc_step_idx < (hdr->datalen / 256);
 	    ecc_step_idx++) {
 		stat = ecc_sw_hamming_calculate(databuf, 256, ecccalc, false);
 		if (stat < 0) {
-			context_res->errno_rc = stat;
-			return ANSWER_NACK;
+			ANSWER_NACK_WITH_RC(stat);
 		}
 		stat = ecc_sw_hamming_correct(
 		    databuf, eccbuf, ecccalc, 256, false);
 		if (stat < 0) {
-			if (prog_params.verbose)
-				fprintf(stderr, "%s: uncorrectable ECC error\n",
-				    __func__);
-			context_res->errno_rc = stat;
-			return ANSWER_NACK;
+			VLOG(1, stderr,
+			    "%s: uncorrectable ECC error, data dump:\n",
+			    __func__);
+			VHEXDUMP(1, stderr, databuf, 256);
+			VLOG(1, stderr, "%s: calculated ECC is:\n", __func__);
+			VHEXDUMP(1, stderr, ecccalc, 3);
+			VLOG(1, stderr, "%s: stored ECC is:\n", __func__);
+			VHEXDUMP(1, stderr, eccbuf, 3);
+			ANSWER_NACK_WITH_RC(stat);
 		}
+
+		eccbuf += 3;
+		databuf += 256;
 	}
 
+	VLOG(2, stderr, "%s: returned data length - %d, oob length - %d\n",
+	    __func__, hdr->datalen, hdr->ooblen);
 	context_res->data_retlen = hdr->datalen;
 	context_res->oob_retlen = hdr->ooblen;
 	context_res->errno_rc = 0;
@@ -176,10 +254,11 @@ static transform_answer_t hamming_read_process(const struct shm_slot_hdr *hdr,
 static transform_answer_t dummy_nack_process(const struct shm_slot_hdr *hdr,
     const u8 *entire_page_buf, struct transform_context_results *context_res)
 {
-	(void)hdr;
-	(void)entire_page_buf;
-
 	context_res->errno_rc = s_errno_rc;
+
+	VLOG(3, stderr, "%s: Full page dump, data_len %u, oob_len: %u:\n",
+	    __func__, hdr->datalen, hdr->ooblen);
+	VHEXDUMP(3, stderr, entire_page_buf, hdr->datalen + hdr->ooblen);
 
 	if (prog_params.timeout) {
 		// FIXME: 3 seconds feel arbitrary, but should work for now...
@@ -291,14 +370,14 @@ int handle_params(int argc, char **argv)
 	int failed_parsing_nack_writes_errno = 0;
 
 	while ((opt = getopt_long(
-		    argc, argv, "hvtDEN:Iw", long_options, NULL)) != -1) {
+		    argc, argv, "hvtDEeN:Iw", long_options, NULL)) != -1) {
 		switch (opt) {
 		case 'h':
 			print_help(argv[0]);
 			return EXIT_SUCCESS;
 
 		case 'v':
-			prog_params.verbose = 1;
+			prog_params.verbose += 1;
 			break;
 
 		case 't':
@@ -307,6 +386,10 @@ int handle_params(int argc, char **argv)
 
 		case 'E':
 			prog_params.exit_on_error = 1;
+			break;
+
+		case 'e':
+			prog_params.exit_on_nack = 1;
 			break;
 
 		case 'N':

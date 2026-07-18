@@ -22,7 +22,7 @@ for future implementations.
 : Show help.
 
 `-v`, `--verbose`
-: Enable verbose output.
+: Increase verbose level output.
 
 `-t`, `--timeout`
 : Don't answer with ioctls at all.
@@ -30,7 +30,7 @@ for future implementations.
 `-E`, `--exit-on-error`
 : Exit on first error.
 
-`-N`, `--nack-reads`
+`-R`, `--nack-reads`
 : Answer with NACKs with a specific errno for read requests.
 
 `-W`, `--nack-writes`
