@@ -106,6 +106,33 @@ find_module_and_dependencies() {
     done
 }
 
+copy_binary_with_deps() {
+    local bin
+    bin=$(command -v "$1") || return 0
+    local dest="$2"
+
+    mkdir -p "$dest$(dirname "$bin")"
+    cp -a "$bin" "$dest$bin"
+
+    local loader
+    loader=$(patchelf --print-interpreter "$bin" 2>/dev/null || \
+             readelf -l "$bin" 2>/dev/null | awk '/interpreter/ {gsub(/[\[\]]/,"",$NF); print $NF}')
+
+    if [[ -n "$loader" && -f "$loader" ]]; then
+        mkdir -p "$dest$(dirname "$loader")"
+        cp -a "$loader" "$dest$loader"
+    fi
+
+    ldd "$bin" 2>/dev/null | awk '
+        /=>/ { print $(NF-1) }
+        /^\// { print $1 }
+    ' | while IFS= read -r lib; do
+        [[ -f "$lib" ]] || continue
+        mkdir -p "$dest$(dirname "$lib")"
+        cp -a "$lib" "$dest$lib"
+    done
+}
+
 echo "[*] Resolving nandsim dependency tree..."
 find_module_and_dependencies "nandsim"
 
@@ -162,6 +189,11 @@ chmod +x "$ROOT/init"
 
 cp -v $PWD/user/qemu_vm.udhcpc.script $ROOT/udhcpc.script
 chmod +x "$ROOT/udhcpc.script"
+
+# Create basic /bin directory for copying some ELF executables
+mkdir -p $ROOT/bin
+copy_binary_with_deps nanddump "$ROOT"
+copy_binary_with_deps nandwrite "$ROOT"
 
 # -----------------------------
 # build initramfs
