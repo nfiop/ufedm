@@ -155,6 +155,24 @@ int proxy_device_ack_request(
 	if (ret < 0)
 		goto exit;
 
+	if (ack->retlen > dev->page_data_size) {
+		pr_warn_ratelimited("ufedm: returned data len which "
+				    "is higher than allowed "
+				    "(tried %u, max %zu)\n",
+		    ack->retlen, dev->page_data_size);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (ack->oob_retlen > dev->page_oob_size) {
+		pr_warn_ratelimited("ufedm: returned ooblen which is "
+				    "higher than allowed "
+				    "(tried %u, max %zu)\n",
+		    ack->oob_retlen, dev->page_oob_size);
+		ret = -EINVAL;
+		goto exit;
+	}
+
 	/* Using ack->base.seq_num is OK, we checked that it's not bogus.
 	 * Pass NULL for pos_params - we don't need to update those upon an
 	 * ACK ioctl.
@@ -181,6 +199,14 @@ int proxy_device_nack_request(
 	ret = reject_bogus_answer(q, &nack->base);
 	if (ret < 0)
 		goto exit;
+
+	/*
+	 * We set a default to EIO if userspace did not have anything
+	 * meaningful to set. This ensures the I/O loop in the upper
+	 * MTD device waiting for completion exits properly.
+	 */
+	if (nack->positive_errno == 0)
+		nack->positive_errno = EIO;
 
 	complete_request_locked(
 	    q, &q->req_pkt_slots[nack->base.slot_num], nack->positive_errno);

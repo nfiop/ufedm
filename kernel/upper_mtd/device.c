@@ -214,8 +214,6 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 	struct nand_io_iter iter;
 	struct nand_device *nand;
 	struct mtd_info *backend;
-	size_t user_ret_datalen;
-	size_t user_ret_ooblen;
 	struct mtd_oob_ops per_page_raw_ops;
 
 	ret = ensure_safe_environment(mtd, ops, &proxy_dev, &dev);
@@ -263,32 +261,15 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 			goto exit;
 		}
 
-		user_ret_datalen = shm_slot->header.datalen;
-		user_ret_ooblen = shm_slot->header.ooblen;
-
-		if (user_ret_datalen > proxy_dev->page_data_size) {
-			pr_warn_ratelimited(
-			    "ufedm: packet (slot %zu) returned data len which "
-			    "is higher than allowed "
-			    "(tried %zu, max %zu)\n",
-			    slot->slot_idx, user_ret_datalen,
-			    proxy_dev->page_data_size);
-			return -EINVAL;
-		}
-
-		if (user_ret_ooblen > proxy_dev->page_oob_size) {
-			pr_warn_ratelimited(
-			    "ufedm: packet (slot %zu) returned ooblen which is "
-			    "higher than allowed "
-			    "(tried %zu, max %zu)\n",
-			    slot->slot_idx, user_ret_ooblen,
-			    proxy_dev->page_oob_size);
-			return -EINVAL;
-		}
-
+		/*
+		 * An ACK was received, so we now process according to user
+		 * returned lengths. We don't read the lengths from the shared
+		 * memory buffer, although it is possible, but we validate the
+		 * lengths upon the ACK ioctl.
+		 */
 		per_page_raw_ops.mode = MTD_OPS_RAW;
-		per_page_raw_ops.len = user_ret_datalen;
-		per_page_raw_ops.ooblen = user_ret_ooblen;
+		per_page_raw_ops.len = slot->header.datalen;
+		per_page_raw_ops.ooblen = slot->header.ooblen;
 		per_page_raw_ops.datbuf = shm_slot->buf;
 		per_page_raw_ops.oobbuf =
 		    shm_slot->buf + proxy_dev->page_data_size;
@@ -302,8 +283,8 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 
 		/* It's tempting to do this:
 		 * ```
-		 * ops->retlen += user_ret_datalen;
-		 * ops->oobretlen += user_ret_ooblen;
+		 * ops->retlen += slot->header.datalen;
+		 * ops->oobretlen += slot->header.ooblen;
 		 * ```
 		 * However, that could severely confuse the MTD client as it
 		 * thought it sent a known set of bytes (for example, only
