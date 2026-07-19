@@ -6,6 +6,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 
 #include "backing_mtd/device.h"
 #include "defs.h"

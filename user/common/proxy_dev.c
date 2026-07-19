@@ -414,4 +414,9 @@ void unregister_proxy_eventfd(
 	// We are very unlikey to get error (unless we passed wrong slot idx,
 	// etc), so assert on such condition.
 	assert(ret == 0);
+
+	// FIXME: The compiler on the Olimex A20 buildroot environment was
+	// angry we didn't "use" ret anywhere in the function. Put this to calm
+	// it down, although we have an assertion check with that variable.
+	(void)ret;
 }
