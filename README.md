@@ -83,12 +83,11 @@ See `run-nandsim-vm.sh` for more details, but something like this should
 get you started:
 
 ```sh
-KERNEL=/boot/vmlinuz-linux INITRD=/boot/initramfs-linux.img \
-  ./run-nandsim-vm.sh
+KERNEL=/boot/vmlinuz-linux ./run-nandsim-vm.sh
 ```
 
-Adjust the `KERNEL` and `INITRD` to your environment and make sure you
-have read permissions on both files.
+Adjust the `KERNEL` to your environment and make sure you have read
+permissions on both files.
 
 ## Limitations
 
