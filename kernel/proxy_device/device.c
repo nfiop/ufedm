@@ -38,6 +38,8 @@ int proxy_device_create(struct ufedm_proxy_device *dev)
 
 	mutex_init(&dev->shm_mapping.lock);
 
+	atomic_set(&dev->already_open, 0);
+
 	proxy_device_fill_shm_info(dev, &dev->shm_info);
 
 	ret = init_io_queues(dev);
@@ -70,7 +72,6 @@ int proxy_device_create(struct ufedm_proxy_device *dev)
 		goto delete_chrdev;
 	}
 
-	atomic_set(&dev->already_open, 0);
 	return 0;
 
 delete_chrdev:
