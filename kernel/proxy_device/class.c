@@ -89,8 +89,8 @@ static int add_devices(struct prox_dev_class *devs, int *max_idx)
 
 static int alloc_array(struct prox_dev_class *devs)
 {
-	// Protect against invalid numbers right here.
-	if (devs->count == 0 || devs->count > PROXY_MAX_DEVICE_COUNT)
+	// Protect against 0 - which is invalid.
+	if (devs->count == 0)
 		return -EINVAL;
 
 	devs->dev_arr = kvzalloc(
@@ -107,7 +107,7 @@ static int proxy_device_class_create_devices(struct prox_dev_class *devs)
 	int device_idx;
 	int ret;
 	ret = alloc_chrdev_region(
-	    &devs->devno, 0, PROXY_MAX_DEVICE_COUNT, PROXY_DEVICE_NAME);
+	    &devs->devno, 0, devs->count, PROXY_DEVICE_NAME);
 	if (ret != 0)
 		goto failed_chrdev_region_alloc;
 

@@ -22,6 +22,9 @@ typedef uint64_t u64;
 
 // 32 is a reasonable number for MTD partitions' count on one
 // system. It can be easily changed if so desired.
+// FIXME: Consider removing this macro, by making the kernel module
+// parameter to be a string of "unlimited" length (which will require
+// parsing of that string).
 #define PROXY_MAX_DEVICE_COUNT 32
 
 // A value that represents the max count of queues per proxy device.
