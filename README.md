@@ -1,7 +1,7 @@
 # ufedm - Userspace flash ECC & data management
 
-This kernel module registers a new `mtd` device on top of a "raw"
-mtd device, to act as a proxy for I/O requests.
+`ufedm` is a kernel module which registers new `mtd` devices on top of 
+"raw" mtd devices, so these devices act as a proxy for I/O requests.
 
 It also registers a new character device which userspace should open
 for handling of I/O requests - especially for managmenent of error-correction
