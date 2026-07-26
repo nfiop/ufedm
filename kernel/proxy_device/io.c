@@ -278,6 +278,7 @@ static int initalize_queue_slots(
 {
 	int ret;
 	size_t idx;
+	struct proxy_io_slot *slot;
 
 	/* Set slot indices so they can be used by the watchdog kthread
 	 * later on.
@@ -287,17 +288,20 @@ static int initalize_queue_slots(
 	 */
 
 	for (idx = 0; idx < q->info.slots_count; idx++) {
-		q->req_pkt_slots[idx].slot_idx = idx;
-		init_completion(&q->req_pkt_slots[idx].done);
-		q->req_pkt_slots[idx].parentq = q;
-		q->req_pkt_slots[idx].shadow_data_and_oob_buf =
+		slot = &q->req_pkt_slots[idx];
+
+		slot->shadow_data_and_oob_buf =
 		    kvzalloc(shadow_buf_size, GFP_KERNEL);
-		if (!q->req_pkt_slots[idx].shadow_data_and_oob_buf) {
+		if (!slot->shadow_data_and_oob_buf) {
 			ret = -ENOMEM;
 			goto error_allocating_shadow_buf;
 		}
-		q->req_pkt_slots[idx].shadow_data_and_oob_buf_size =
-		    shadow_buf_size;
+
+		slot->shadow_data_and_oob_buf_size = shadow_buf_size;
+		INIT_LIST_HEAD(&slot->allocated_node);
+		slot->slot_idx = idx;
+		init_completion(&slot->done);
+		slot->parentq = q;
 	}
 
 	return 0;
