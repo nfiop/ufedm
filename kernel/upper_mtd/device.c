@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Liav A
  */
 
+#include <asm-generic/errno.h>
 #include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -315,6 +316,16 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 	dev->backend = backend;
 	if (dev->backend == NULL) {
 		return -EINVAL;
+	}
+
+	/* This is probably not possible to happen on a NAND flash MTD, but
+	 * it's better to check this to ensure we don't really miss something
+	 * and crash the kernel.
+	 */
+	if (!dev->_read_oob || !dev->_write_oob) {
+		pr_err("ufedm: failed to register upper MTD on an MTD which "
+		       "doesn't support _read_oob or _write_oob callbacks\n");
+		return -EOPNOTSUPP;
 	}
 
 	/* Basic identity */
