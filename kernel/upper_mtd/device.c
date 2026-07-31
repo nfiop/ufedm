@@ -308,12 +308,6 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 {
 	int ret;
 
-	dev->upper = kvzalloc(sizeof(struct mtd_info), GFP_KERNEL);
-	if (!dev->upper) {
-		return -ENOMEM;
-	}
-
-	dev->backend = backend;
 	if (dev->backend == NULL) {
 		return -EINVAL;
 	}
@@ -322,11 +316,18 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 	 * it's better to check this to ensure we don't really miss something
 	 * and crash the kernel.
 	 */
-	if (!dev->_read_oob || !dev->_write_oob) {
+	if (!dev->backend->_read_oob || !dev->backend->_write_oob) {
 		pr_err("ufedm: failed to register upper MTD on an MTD which "
 		       "doesn't support _read_oob or _write_oob callbacks\n");
 		return -EOPNOTSUPP;
 	}
+
+	dev->upper = kvzalloc(sizeof(struct mtd_info), GFP_KERNEL);
+	if (!dev->upper) {
+		return -ENOMEM;
+	}
+
+	dev->backend = backend;
 
 	/* Basic identity */
 	dev->upper->name = "upper-mtd";
@@ -350,6 +351,7 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 	ret = mtd_device_register(dev->upper, NULL, 0);
 	if (ret != 0) {
 		pr_err("ufedm: failed to register upper MTD\n");
+		kvfree(dev->upper);
 		return ret;
 	}
 
