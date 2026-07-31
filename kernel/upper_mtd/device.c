@@ -312,6 +312,12 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 		return -EINVAL;
 	}
 
+	if (dev->backend->numeraseregions != 0) {
+		pr_err("ufedm: backing MTD has different erasesizes, which we "
+		       "don't support currently\n");
+		return -EINVAL;
+	}
+
 	/* This is probably not possible to happen on a NAND flash MTD, but
 	 * it's better to check this to ensure we don't really miss something
 	 * and crash the kernel.
