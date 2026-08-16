@@ -7,11 +7,12 @@
 #define __MTD__UPPER_DEVICE
 
 #include <linux/mtd/mtd.h>
+#include <linux/mtd/nand.h>
 #include <linux/types.h>
 
 struct upper_mtd_device {
+	struct nand_device base;
 	struct mtd_info *backend;
-	struct mtd_info *upper;
 
 	/* Proxy MTD device pointer which will want
 	 * to deref on actual request sending/completion

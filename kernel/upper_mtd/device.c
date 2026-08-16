@@ -304,15 +304,73 @@ exit:
 	return ret;
 }
 
+static int upper_nand_erase(
+    struct nand_device *nand, const struct nand_pos *pos)
+{
+	struct upper_mtd_device *upper_dev =
+	    container_of(nand, struct upper_mtd_device, base);
+	struct nand_device *backend_nand = mtd_to_nanddev(upper_dev->backend);
+	BUG_ON(backend_nand == NULL);
+
+	WARN_ON_ONCE(backend_nand->ops->erase == NULL);
+	if (!backend_nand->ops->erase)
+		return -EOPNOTSUPP;
+
+	return backend_nand->ops->erase(backend_nand, pos);
+}
+
+static int upper_nand_markbad(
+    struct nand_device *nand, const struct nand_pos *pos)
+{
+	struct upper_mtd_device *upper_dev =
+	    container_of(nand, struct upper_mtd_device, base);
+	struct nand_device *backend_nand = mtd_to_nanddev(upper_dev->backend);
+	BUG_ON(backend_nand == NULL);
+
+	WARN_ON_ONCE(backend_nand->ops->markbad == NULL);
+	if (!backend_nand->ops->markbad)
+		return -EOPNOTSUPP;
+
+	return backend_nand->ops->markbad(backend_nand, pos);
+}
+
+static bool upper_nand_isbad(
+    struct nand_device *nand, const struct nand_pos *pos)
+{
+	struct upper_mtd_device *upper_dev =
+	    container_of(nand, struct upper_mtd_device, base);
+	struct nand_device *backend_nand = mtd_to_nanddev(upper_dev->backend);
+	BUG_ON(backend_nand == NULL);
+
+	WARN_ON_ONCE(backend_nand->ops->isbad == NULL);
+	if (!backend_nand->ops->isbad)
+		return false;
+
+	return backend_nand->ops->isbad(backend_nand, pos);
+}
+
+static const struct nand_ops upper_nand_ops = {
+    .erase = upper_nand_erase,
+    .markbad = upper_nand_markbad,
+    .isbad = upper_nand_isbad,
+};
+
+static void copy_nand_device_mem_organization(
+    const struct nand_device *src, struct nand_device *dest)
+{
+	struct nand_memory_organization *src_memorg =
+	    nanddev_get_memorg((struct nand_device *)src);
+	struct nand_memory_organization *dest_memorg = nanddev_get_memorg(dest);
+	memcpy(
+	    dest_memorg, src_memorg, sizeof(struct nand_memory_organization));
+}
+
 static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend, struct ufedm_proxy_device *proxy_dev)
 {
 	int ret;
+	struct mtd_info *mtd;
 
-	if (dev->backend == NULL) {
-		return -EINVAL;
-	}
-
-	if (dev->backend->numeraseregions != 0) {
+	if (backend->numeraseregions != 0) {
 		pr_err("ufedm: backing MTD has different erasesizes, which we "
 		       "don't support currently\n");
 		return -EINVAL;
@@ -322,42 +380,45 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 	 * it's better to check this to ensure we don't really miss something
 	 * and crash the kernel.
 	 */
-	if (!dev->backend->_read_oob || !dev->backend->_write_oob) {
+	if (!backend->_read_oob || !backend->_write_oob) {
 		pr_err("ufedm: failed to register upper MTD on an MTD which "
 		       "doesn't support _read_oob or _write_oob callbacks\n");
 		return -EOPNOTSUPP;
 	}
 
-	dev->upper = kvzalloc(sizeof(struct mtd_info), GFP_KERNEL);
-	if (!dev->upper) {
-		return -ENOMEM;
-	}
-
+	mtd = nanddev_to_mtd(&dev->base);
 	dev->backend = backend;
 
+	copy_nand_device_mem_organization(mtd_to_nanddev(backend), &dev->base);
+	ret = nanddev_init(&dev->base, &upper_nand_ops, THIS_MODULE);
+	if (ret != 0) {
+		pr_err("ufedm: failed to init nand_device for upper MTD "
+		       "with error %d (%pe)\n",
+		    ret, ERR_PTR(-ret));
+		return ret;
+	}
+
 	/* Basic identity */
-	dev->upper->name = "upper-mtd";
-	dev->upper->type = backend->type;
-	dev->upper->flags = backend->flags;
-	dev->upper->size = backend->size;
-	dev->upper->erasesize = backend->erasesize;
-	dev->upper->writesize = backend->writesize;
+	mtd->name = "upper-mtd";
+	mtd->flags = backend->flags;
+	mtd->size = backend->size;
+	mtd->erasesize = backend->erasesize;
+	mtd->writesize = backend->writesize;
 
-	dev->upper->_erase = upper_erase;
+	mtd->_erase = upper_erase;
 
-	dev->upper->_write_oob = upper_write_oob;
-    dev->upper->_read_oob  = upper_read_oob;
+	mtd->_write_oob = upper_write_oob;
+	mtd->_read_oob = upper_read_oob;
 
-	dev->upper->priv = dev;
+	mtd->priv = dev;
 
 	// Connect a proxy_dev into our upper device
 	// so it can deref it later on when doing I/O.
 	dev->proxy_dev = proxy_dev;
 
-	ret = mtd_device_register(dev->upper, NULL, 0);
+	ret = mtd_device_register(mtd, NULL, 0);
 	if (ret != 0) {
 		pr_err("ufedm: failed to register upper MTD\n");
-		kvfree(dev->upper);
 		return ret;
 	}
 
@@ -366,9 +427,8 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 
 static void destroy_device(struct upper_mtd_device *dev)
 {
-	mtd_device_unregister(dev->upper);
+	mtd_device_unregister(nanddev_to_mtd(&dev->base));
 	dev->proxy_dev = NULL;
-	kvfree(dev->upper);
 }
 
 void upper_mtd_destroy_devices(struct upper_mtd_device *dev_array, size_t count)
