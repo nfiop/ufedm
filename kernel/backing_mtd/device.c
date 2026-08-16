@@ -26,13 +26,28 @@ static int open_backend_mtd_device(
     struct mtd_info **mtd_ptr_in_list, uint mtd_index)
 {
 	struct nand_device *nanddev;
-	*mtd_ptr_in_list = get_mtd_device(NULL, mtd_index);
-	if (IS_ERR(*mtd_ptr_in_list)) {
+
+	/* We call this __master to distinguish this - we don't hold
+	 * a refcount on the master in any case here explicitly.
+	 */
+	struct mtd_info *__master;
+	struct mtd_info *mtd;
+
+	mtd = get_mtd_device(NULL, mtd_index);
+	if (IS_ERR(mtd)) {
 		pr_err("ufedm: failed to open mtd%d\n", mtd_index);
-		return PTR_ERR(*mtd_ptr_in_list);
+		return PTR_ERR(mtd);
 	}
 
-	struct mtd_info *mtd = *mtd_ptr_in_list;
+	/* This should not increment the refcount on the master! */
+	__master = mtd_get_master(mtd);
+	if (mtd != __master) {
+		pr_err("ufedm: failed to open mtd%d, is not a master MTD!\n",
+		    mtd_index);
+		put_mtd_device(mtd);
+		return -EOPNOTSUPP;
+	}
+
 	if (!(mtd->type == MTD_NANDFLASH || mtd->type == MTD_MLCNANDFLASH)) {
 		pr_err(
 		    "ufedm: failed to open mtd%d, is not a NAND flash chip!\n",
@@ -74,6 +89,8 @@ static int open_backend_mtd_device(
 			return -EINVAL;
 		}
 	}
+
+	*mtd_ptr_in_list = mtd;
 
 	pr_info("ufedm: opened mtd%d (%s)\n", mtd->index, mtd->name);
 	return 0;
