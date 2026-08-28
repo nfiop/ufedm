@@ -40,12 +40,32 @@ static void remove_devices(struct prox_dev_class *dev_class, int max_idx)
 	}
 }
 
+static void init_mtd_info(
+    struct ufedm_proxy_device *dev, struct nand_device *nanddev)
+{
+	struct mtd_info *backend = nanddev_to_mtd(nanddev);
+
+	// FIXME: I don't really like the mix of nanddev_* API and
+	// MTD struct mtd_info fields here. We should use the nanddev API
+	// exclusively.
+	dev->mtd_info.backend_mtd_index = backend->index;
+	dev->mtd_info.flash_page_size = backend->writesize + backend->oobsize;
+	dev->mtd_info.flash_oob_size = nanddev_per_page_oobsize(nanddev);
+	dev->mtd_info.flash_pages_per_sector_cnt =
+	    nanddev_pages_per_eraseblock(nanddev);
+	dev->mtd_info.flash_erase_sector_size = backend->erasesize;
+	dev->mtd_info.flash_size = backend->size;
+	dev->mtd_info.flash_sectors_cnt = nanddev_neraseblocks(nanddev);
+	memset(dev->mtd_info.reserved, 0, sizeof(__u32) * 3);
+}
+
 static int add_devices(struct prox_dev_class *dev_class, int *max_idx)
 {
 	int major;
 	int ret;
 	struct nand_device *nanddev;
 	struct mtd_info *backing_mtd;
+	struct ufedm_proxy_device *dev;
 
 	*max_idx = 0;
 	major = MAJOR(dev_class->devno);
@@ -65,7 +85,7 @@ static int add_devices(struct prox_dev_class *dev_class, int *max_idx)
 			return -EINVAL;
 		}
 
-		struct ufedm_proxy_device *dev = &dev_class->devs[*max_idx];
+		dev = &dev_class->devs[*max_idx];
 		dev->backend_dev = backing_mtd;
 		dev->devno = MKDEV(major, *max_idx);
 		dev->device_class = dev_class->device_class;
@@ -79,6 +99,8 @@ static int add_devices(struct prox_dev_class *dev_class, int *max_idx)
 		dev->page_data_size = nanddev_page_size(nanddev);
 
 		dev->page_oob_size = nanddev_per_page_oobsize(nanddev);
+
+		init_mtd_info(dev, nanddev);
 
 		ret = proxy_device_create(dev);
 		if (ret != 0)

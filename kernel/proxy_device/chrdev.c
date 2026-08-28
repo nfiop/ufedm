@@ -200,14 +200,8 @@ static long proxy_chrdev_ioctl(
 	}
 
 	case PROXY_IOC_GET_MTD_INFO: {
-		struct proxy_mtd_info tmp;
-		tmp.backend_mtd_index = backend->index;
-		tmp.flash_page_size = backend->writesize + backend->oobsize;
-		tmp.flash_oob_size = backend->oobsize;
-		tmp.flash_pages_per_sector_cnt = tmp.flash_erase_sector_size =
-		    backend->erasesize;
-		memset(tmp.reserved, 0, sizeof(__u32) * 6);
-		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp))) {
+		if (copy_to_user((void __user *)arg, &prox_dev->mtd_info,
+			sizeof(struct proxy_mtd_info))) {
 			ret = -EINVAL;
 			goto exit;
 		}

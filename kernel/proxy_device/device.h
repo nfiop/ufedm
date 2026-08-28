@@ -206,6 +206,11 @@ struct ufedm_proxy_device {
 	 */
 	struct proxy_shm_info shm_info;
 
+	/* Used for the PROXY_IOC_GET_MTD_INFO ioctl, as an invariant after
+	 * init path is completed.
+	 */
+	struct proxy_mtd_info mtd_info;
+
 	struct proxy_requests_queue queues[PROXY_MAX_QUEUES_COUNT];
 
 	struct proxy_requests_queue *readq;

@@ -31,10 +31,13 @@ struct proxy_mtd_info {
 				*/
 	__u16 flash_oob_size;  // OOB size includes ECC bytes, bad block marker
 			       // and other misc bytes
+	__u16 flash_sectors_cnt; // Total count of flash device's sectors
+				 // (eraseblocks)
 	__u32 flash_pages_per_sector_cnt; // Page count per erase sector (known
 					  // also as eraseblock)
 	__u32 flash_erase_sector_size;	  // Size of erase sector
-	__u32 reserved[6];		  /* reserved for future expansion */
+	__u64 flash_size;		  // Total size of flash device
+	__u32 reserved[3];		  /* reserved for future expansion */
 };
 
 struct proxy_stats {
