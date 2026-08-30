@@ -2,27 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="$ROOT_DIR/build"
 
 BUILDROOT_DIR="${BUILDROOT_DIR:-}"
 
-configure_cmake_build_directory() {
-   cmake -B "$BUILD_DIR" \
-    -DBUILDROOT_DIR="${BUILDROOT_DIR:-}" \
-    "$ROOT_DIR"
-}
-
 clean() {
-    rm -rf $"BUILD_DIR" 
-    
-    echo "==> Creating mock build environment before cleaning"
-    configure_cmake_build_directory
-
-    echo "==> Cleaning kernel module artifacts"
-    cmake --build ${BUILD_DIR} --target kernel_module_clean
-    
-    echo "==> Cleaning build directory: $BUILD_DIR"
-    rm -rf "$BUILD_DIR"
+    rm -rf "$ROOT_DIR/build/"
  
     echo "==> Clean complete"
 }
@@ -88,7 +72,27 @@ fi
 
 echo "==> Configuring"
 
-configure_cmake_build_directory
+if [[ -z "$BUILDROOT_DIR" ]]; then
+    BUILD_DIR="$ROOT_DIR/build/$(uname -m)-linux-$(uname -r)"
+else
+    LINUX_VER=$(ls "$BUILDROOT_DIR/output/build/" | grep '^linux')
+    if [[ $? -ne 0 || -z "$LINUX_VER" ]]; then
+        echo "Could not find Linux version for buildroot environment"
+        exit 1
+    fi
+
+    BUILDROOT_ARCH=$(grep '^BR2_ARCH=' "$BUILDROOT_DIR/.config" | sed 's/BR2_ARCH="\(.*\)"/\1/')
+    if [[ $? -ne 0 || -z "$BUILDROOT_ARCH" ]]; then
+        echo "Could not determine Buildroot architecture"
+        exit 1
+    fi
+    BUILD_DIR="$ROOT_DIR/build/$BUILDROOT_ARCH-$LINUX_VER"
+fi
+
+# Configure CMake build directory
+cmake -B "$BUILD_DIR" \
+    -DBUILDROOT_DIR="${BUILDROOT_DIR:-}" \
+    "$ROOT_DIR"
 
 echo "==> Building"
 cmake --build "$BUILD_DIR" -j"$(nproc)"
