@@ -217,13 +217,18 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 	struct nand_device *nand;
 	struct mtd_info *backend;
 	struct mtd_oob_ops per_page_raw_ops;
+	size_t page_oob_size;
+	size_t page_data_size;
 
 	ret = ensure_safe_environment(mtd, ops, &proxy_dev, &dev);
 	if (ret < 0)
 		return ret;
 
-	BUG_ON(proxy_dev->page_data_size == 0);
-	BUG_ON(proxy_dev->page_oob_size == 0);
+	page_oob_size = proxy_dev->page_oob_size;
+	page_data_size = proxy_dev->page_data_size;
+
+	BUG_ON(page_data_size == 0);
+	BUG_ON(page_oob_size == 0);
 
 	nand = mtd_to_nanddev(proxy_dev->backend_dev);
 	backend = dev->backend;
@@ -268,13 +273,33 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 		 * returned lengths. We don't read the lengths from the shared
 		 * memory buffer, although it is possible, but we validate the
 		 * lengths upon the ACK ioctl.
+		 *
+		 * IMPORTANT NOTE:
+		 * We DO NOT want to support partial page writes - this kind of
+		 * behavior is not consistent across all NAND controllers, so we
+		 * can't rely on it safely.
+		 * Because of this, we must reject partial writes - i.e. any RAW
+		 * write request that doesn't write the whole page + OOB
+		 * together.
 		 */
+		if (slot->header.datalen != page_data_size ||
+		    slot->header.ooblen != page_oob_size) {
+			pr_warn_ratelimited(
+			    "ufedm: incomplete write request attempted "
+			    "(tried data: %zu bytes,oob: %zu bytes, should "
+			    "be data: %zu bytes,oob: %zu bytes)\n",
+			    (size_t)slot->header.datalen,
+			    (size_t)slot->header.ooblen, page_data_size,
+			    page_oob_size);
+			ret = -EOPNOTSUPP;
+			goto exit;
+		}
+
 		per_page_raw_ops.mode = MTD_OPS_RAW;
-		per_page_raw_ops.len = slot->header.datalen;
-		per_page_raw_ops.ooblen = slot->header.ooblen;
+		per_page_raw_ops.len = page_data_size;
+		per_page_raw_ops.ooblen = page_oob_size;
 		per_page_raw_ops.datbuf = shm_slot->buf;
-		per_page_raw_ops.oobbuf =
-		    shm_slot->buf + proxy_dev->page_data_size;
+		per_page_raw_ops.oobbuf = shm_slot->buf + page_data_size;
 
 		/* We can also fail right here as well.
 		 * Common reasons are I/O issues in hardware, etc.
