@@ -215,14 +215,22 @@ static int upper_read_oob(
 			goto exit;
 		}
 
-		/* This is weird - returning less data (or more) than what is
-		 * requested is kinda odd and should be normally rejected
-		 * because there's no actual way to handle it properly against
-		 * the original request. We could technically allow userspace to
-		 * ACK less data bytes, but there's no real reason to allow this
-		 * - a NAND page of 2048 bytes should have that exact amount of
-		 * data bytes, in contrast to OOB bytes, which have a concept of
+		/* Returning less data (or more) than what is requested is kinda
+		 * odd and should be normally rejected, because there's no way
+		 * to handle it properly against the original request.
+		 *
+		 * We could technically allow userspace to ACK less data bytes,
+		 * but there's no real reason to allow this, for example - a
+		 * NAND page of 2048 bytes should have that exact amount of
+		 * (2048) data bytes.
+		 * This stands in contrast to OOB bytes, which have a concept of
 		 * user, free or reserved ranges.
+		 *
+		 * This check still works for partial reads (where we read less
+		 * than a whole range of the data bytes in a page), whether
+		 * because there's an origianl request to read less than that,
+		 * or just because the last iteration has left us with less than
+		 * a "full" size of data bytes to be read.
 		 */
 		if (slot->header.datalen != iter.req.datalen) {
 			pr_warn_ratelimited(
