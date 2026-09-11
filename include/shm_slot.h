@@ -86,8 +86,8 @@ struct shm_slot_hdr {
 	 */
 	struct nand_io_position_params pos_params;
 
-	/* These values have are set with respect to the I/O request that
-	 * is occuring within the slot -
+	/* These values are set with respect to the I/O request that is 
+	 * occuring within the slot -
 	 *
 	 * For write slots, they represent the data and OOB buffer lengths that
 	 * are specified by the upper MTD write_oob callee.
