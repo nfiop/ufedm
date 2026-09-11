@@ -191,6 +191,49 @@ static int upper_read_oob(
 			goto exit;
 		}
 
+		/* It's completely legal for userspace to provide back **less**
+		 * OOB bytes than actually requested. In such case, we might
+		 * just adjust the ooblen of the current request and be done
+		 * with it. This is equivalent to changing the mtd_oobavail
+		 * parameter in runtime, just so it's done by userspace during
+		 * an I/O request in correlation to a known policy.
+		 */
+		if (slot->header.ooblen < iter.req.ooblen)
+			iter.req.ooblen = slot->header.ooblen;
+
+		/* There's no sane way to handle more OOB bytes and insert them
+		 * into a buffer range that doesn't exist. Reject it now.
+		 */
+		if (slot->header.ooblen > iter.req.ooblen) {
+			pr_warn_ratelimited(
+			    "ufedm: OOB bytes count exceeding for read request "
+			    "(ACKed %zu OOB bytes, should be up to %zu "
+			    "bytes)\n",
+			    (size_t)slot->header.ooblen,
+			    (size_t)iter.req.ooblen);
+			ret = -EOPNOTSUPP;
+			goto exit;
+		}
+
+		/* This is weird - returning less data (or more) than what is
+		 * requested is kinda odd and should be normally rejected
+		 * because there's no actual way to handle it properly against
+		 * the original request. We could technically allow userspace to
+		 * ACK less data bytes, but there's no real reason to allow this
+		 * - a NAND page of 2048 bytes should have that exact amount of
+		 * data bytes, in contrast to OOB bytes, which have a concept of
+		 * user, free or reserved ranges.
+		 */
+		if (slot->header.datalen != iter.req.datalen) {
+			pr_warn_ratelimited(
+			    "ufedm: incomplete read attempted "
+			    "(ACKed %zu data bytes, should be %zu bytes)\n",
+			    (size_t)slot->header.datalen,
+			    (size_t)iter.req.datalen);
+			ret = -EOPNOTSUPP;
+			goto exit;
+		}
+
 		memcpy(iter.req.databuf.in, shm_slot->buf, iter.req.datalen);
 		memcpy(iter.req.oobbuf.in,
 		    (const u8 *)shm_slot->buf + proxy_dev->page_data_size,
@@ -434,6 +477,15 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 
 	mtd->_write_oob = upper_write_oob;
 	mtd->_read_oob = upper_read_oob;
+
+	/* oobsize is initialized by nanddev_init, but I/O operations, in
+	 * MTD_AUTO_OOB mode, might check oobavail instead.
+	 * The important thing is to remember that we remain in control, and
+	 * adjusting the OOB "available" range in runtime is not something we
+	 * would want to do, but reporting a different size is possible.
+	 * See upper_mtd read callback to learn more about such scenario.
+	 */
+	mtd->oobavail = mtd->oobsize;
 
 	mtd->priv = dev;
 
