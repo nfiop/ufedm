@@ -361,11 +361,11 @@ static int init_proxy_requests_queue(
 	/* ID number 0 is not a valid number, set to 1 instead */
 	atomic64_set(&q->next_seq_id, 1);
 
-	/* Put a duration of 300ms for both watchdog sleep and
+	/* Put a duration of 20ms for the watchdog sleep and 300ms
 	 * slot timeout.
 	 * We might need to adjust this if benchmarks show better values.
 	 */
-	q->watchdog_sleep_duration_ms = 300;
+	q->watchdog_sleep_duration_ms = 20;
 	q->slot_timeout_ms = 300;
 
 	q->parent_dev = dev;
