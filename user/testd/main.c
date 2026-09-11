@@ -141,10 +141,10 @@ static void fatal_stop_callback(pid_t tid, int err)
 	atomic_store(&stop, true);
 }
 
-static bool verify_has_enough_oob_storage_for_hamming_ecc(size_t data_len)
+static bool verify_has_enough_oob_storage_for_hamming_ecc(
+    size_t data_len, size_t ooblen)
 {
-	size_t ecc_bytes_count = (state.mtd_info.flash_oob_size - 2);
-	return (data_len / 256) <= (ecc_bytes_count / 3);
+	return (data_len / 256) <= (ooblen / 3);
 }
 
 static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
@@ -153,6 +153,7 @@ static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
 	int ret;
 	size_t ecc_step_idx;
 	size_t oob_retlen = 2;
+	size_t _remainder = 0;
 	size_t oob_offset =
 	    state.mtd_info.flash_page_size - state.mtd_info.flash_oob_size;
 
@@ -160,7 +161,12 @@ static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
 	u8 *eccbuf = ((u8 *)entire_page_buf) + (oob_offset) + 2;
 	u8 *databuf = (u8 *)entire_page_buf;
 
-	if (!verify_has_enough_oob_storage_for_hamming_ecc(hdr->datalen)) {
+	if ((hdr->datalen % 256) != 0)
+		_remainder = 1;
+
+	if (!verify_has_enough_oob_storage_for_hamming_ecc(
+		hdr->datalen + (_remainder * 256),
+		state.mtd_info.flash_oob_size - 2)) {
 		ANSWER_NACK_WITH_RC(-EOPNOTSUPP);
 	}
 
@@ -170,7 +176,7 @@ static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
 	databuf[oob_offset + 1] = 0xFF;
 
 	unsigned char ecccalc[3];
-	for (ecc_step_idx = 0; ecc_step_idx < (hdr->datalen / 256);
+	for (ecc_step_idx = 0; ecc_step_idx < (hdr->datalen / 256) + _remainder;
 	    ecc_step_idx++) {
 		ret = ecc_sw_hamming_calculate(databuf, 256, ecccalc, false);
 		if (ret < 0) {
@@ -200,6 +206,7 @@ static transform_answer_t hamming_read_process(const struct shm_slot_hdr *hdr,
 {
 	int stat;
 	size_t ecc_step_idx;
+	size_t _remainder = 0;
 	size_t oob_offset =
 	    state.mtd_info.flash_page_size - state.mtd_info.flash_oob_size;
 
@@ -207,7 +214,12 @@ static transform_answer_t hamming_read_process(const struct shm_slot_hdr *hdr,
 	u8 *eccbuf = ((u8 *)entire_page_buf) + (oob_offset) + 2;
 	u8 *databuf = (u8 *)entire_page_buf;
 
-	if (!verify_has_enough_oob_storage_for_hamming_ecc(hdr->datalen)) {
+	if ((hdr->datalen % 256) != 0)
+		_remainder = 1;
+
+	if (!verify_has_enough_oob_storage_for_hamming_ecc(
+		hdr->datalen + (_remainder * 256),
+		state.mtd_info.flash_oob_size - 2)) {
 		ANSWER_NACK_WITH_RC(-EOPNOTSUPP);
 	}
 
@@ -219,7 +231,7 @@ static transform_answer_t hamming_read_process(const struct shm_slot_hdr *hdr,
 	VHEXDUMP(3, stderr, databuf, hdr->datalen + hdr->ooblen);
 
 	unsigned char ecccalc[3];
-	for (ecc_step_idx = 0; ecc_step_idx < (hdr->datalen / 256);
+	for (ecc_step_idx = 0; ecc_step_idx < (hdr->datalen / 256) + _remainder;
 	    ecc_step_idx++) {
 		stat = ecc_sw_hamming_calculate(databuf, 256, ecccalc, false);
 		if (stat < 0) {

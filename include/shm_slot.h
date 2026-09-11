@@ -86,29 +86,20 @@ struct shm_slot_hdr {
 	 */
 	struct nand_io_position_params pos_params;
 
-	/* These values specify the amount of data and OOB being
-	 * posted by the kernel to process.
-	 * Userspace is allowed to change this according to the
-	 * actual processing being done before ACKing.
-	 * It should be noted that datalen and ooblen are sanitized
-	 * by the kernel so there's no out-of-bound copy.
+	/* These values have double-meaning, in accordance to their slot usage -
 	 *
-	 * Also, the size of the buffer afterwards **DOES NOT** change
-	 * due to a datalen or ooblen being less the chip page OOB size
-	 * or page data region size.
-	 * If 0 is specified for datalen or ooblen, it means that
-	 * the kernel didn't submit any bytes in the corresponding
-	 * section. After ACKing by userspace, 0 means userspace didn't
-	 * proceed to submit its own bytes in such section - this could
-	 * lead to a I/O failure or just a warning, depending on the
-	 * actual configuration.
+	 * For write slots, they represent the data and OOB buffer lengths that
+	 * are specified by the upper MTD write_oob callee.
+	 * When writing back (doing an ACK), userspace should prepare a whole
+	 * page buffer in the slot, containing the original buffers within the
+	 * slot.
 	 *
-	 * It should be noted, that for most conventional write requests,
-	 * an OOB len is set by default to zero, because we disallow
-	 * the user to explicitly put its OOB bytes where it wants without
-	 * checking bounds (i.e. see requirement of MTD_OPS_AUTO_OOB in
-	 * `ensure_safe_environment` function in `kernel/upper_mtd/device.c`
-	 * to learn more about that).
+	 * For read slots, they represent the data and OOB buffer lengths that
+	 * are specified by the upper MTD read_oob callee.
+	 * When reading back (doing an ACK), userspace should put only the
+	 * returned data and OOB buffers in their appropriate sub-buffers, and
+	 * the lengths in ACK request should be set according to these
+	 * parameters.
 	 */
 	__u32 datalen;
 	__u32 ooblen;

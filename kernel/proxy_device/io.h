@@ -138,10 +138,12 @@ int proxy_device_get_slot(struct ufedm_proxy_device *dev,
  *
  * @param slot the allocated slot
  * @param req a NAND page I/O request (containing details & buffers)
+ * @param iter an iteration instance, being used for determining requested
+	       data and OOB lengths.
  * @return void
  */
-void proxy_device_io_slot_pub_new_packet(
-    struct proxy_io_slot *slot, const struct simple_nand_page_io_req *req);
+void proxy_device_io_slot_publish_new_packet(struct proxy_io_slot *slot,
+    const struct simple_nand_page_io_req *req, const struct nand_io_iter *iter);
 
 /**
  * @brief Free an allocated shared memory I/O slot

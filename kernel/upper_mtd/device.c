@@ -176,7 +176,8 @@ static int upper_read_oob(
 		// with proxy_device_io_slot_pub_new_packet tightly together?
 		copy_nand_pos_to_to_io_pos_params(
 		    &iter.req.pos, &simple_req.pos_params);
-		proxy_device_io_slot_pub_new_packet(slot, &simple_req);
+		proxy_device_io_slot_publish_new_packet(
+		    slot, &simple_req, &iter);
 
 		wait_for_completion(&slot->done);
 
@@ -304,7 +305,8 @@ static int upper_write_oob(struct mtd_info *mtd, loff_t to,
 		// with proxy_device_io_slot_pub_new_packet tightly together?
 		copy_nand_pos_to_to_io_pos_params(
 		    &iter.req.pos, &simple_req.pos_params);
-		proxy_device_io_slot_pub_new_packet(slot, &simple_req);
+		proxy_device_io_slot_publish_new_packet(
+		    slot, &simple_req, &iter);
 
 		wait_for_completion(&slot->done);
 

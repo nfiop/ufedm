@@ -497,16 +497,17 @@ int proxy_device_get_slot(struct ufedm_proxy_device *dev,
 	return 0;
 }
 
-void proxy_device_io_slot_pub_new_packet(
-    struct proxy_io_slot *slot, const struct simple_nand_page_io_req *req)
+static void __proxy_device_io_slot_publish_new_packet(
+    struct proxy_io_slot *slot, size_t iter_datalen, size_t iter_ooblen,
+    const struct simple_nand_page_io_req *req)
 {
 	seq_num_t seq_num;
 	struct proxy_requests_queue *q = slot->parentq;
 	struct ufedm_proxy_device *dev = q->parent_dev;
 	struct shared_mem_slot *shm_slot;
 
-	BUG_ON(req->ooblen > dev->page_oob_size);
-	BUG_ON(req->datalen > dev->page_data_size);
+	BUG_ON(iter_ooblen > dev->page_oob_size);
+	BUG_ON(iter_datalen > dev->page_data_size);
 
 	mutex_lock(&q->lock);
 	seq_num = (u64)atomic64_inc_return(&q->next_seq_id);
@@ -517,7 +518,7 @@ void proxy_device_io_slot_pub_new_packet(
 	 * done processing if it can).
 	 */
 	__update_shm_slot_header(&q->req_pkt_slots[slot->slot_idx].header,
-	    seq_num, req->datalen, req->ooblen, &req->pos_params);
+	    seq_num, iter_datalen, iter_ooblen, &req->pos_params);
 
 	reinit_completion(&q->req_pkt_slots[slot->slot_idx].done);
 	q->req_pkt_slots[slot->slot_idx].status = 0;
@@ -533,12 +534,27 @@ void proxy_device_io_slot_pub_new_packet(
 	    slot->parentq->parent_dev, q->info.idx, slot->slot_idx);
 
 	fill_shm_slot_packet_buffer(shm_slot, dev->page_data_size, req);
-	__update_shm_slot_header(&shm_slot->header, seq_num, req->datalen,
-	    req->ooblen, &req->pos_params);
+	__update_shm_slot_header(&shm_slot->header, seq_num, iter_datalen,
+	    iter_ooblen, &req->pos_params);
 
 	mutex_unlock(&q->lock);
 
 	proxy_eventfd_ctx_notify(&slot->efd);
+}
+
+void proxy_device_io_slot_publish_new_packet(struct proxy_io_slot *slot,
+    const struct simple_nand_page_io_req *req, const struct nand_io_iter *iter)
+{
+	/* The idea behind giving datalen & ooblen from the iterator is the
+	 * fact that we might post an entire raw page when reading from the
+	 * NAND chip, but MTD client was only interested in portion of it.
+	 *
+	 * Same goes for writing - we might receive only a portion of data
+	 * and OOB bytes to write, and we should let blend them into the
+	 * the full raw page write after an ACK.
+	 */
+	__proxy_device_io_slot_publish_new_packet(
+	    slot, iter->req.datalen, iter->req.ooblen, req);
 }
 
 void proxy_device_put_slot(struct proxy_io_slot *slot)
