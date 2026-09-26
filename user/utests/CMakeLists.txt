@@ -10,8 +10,8 @@ foreach(t ${PROXY_UTESTS})
         ${PROJECT_SOURCE_DIR}/user/common/proxy_dev.c)
 
     target_include_directories(${t} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/user/common
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/user/common
     )
 
     target_compile_options(${t} PRIVATE -Wall -Wextra -Werror)

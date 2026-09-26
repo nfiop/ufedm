@@ -4,8 +4,8 @@ add_executable(testd main.c ecc-sw-hamming.c
     ${PROJECT_SOURCE_DIR}/user/common/proxy_dev.c)
 
 target_include_directories(testd PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/user/common
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/user/common
 )
 
 target_compile_options(testd PRIVATE -Wall -Wextra -Werror)
