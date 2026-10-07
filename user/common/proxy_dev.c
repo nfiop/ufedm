@@ -65,19 +65,20 @@ int open_proxy_device_state(const char *path, struct proxy_device_state *state)
 
 	state->fd = open(path, O_RDWR);
 	if (state->fd < 0) {
-		return state->fd;
+		ret = -errno;
+		goto exit;
 	}
 
 	ret = ioctl(state->fd, PROXY_IOC_GET_SHM_INFO, &state->shm_info);
 	if (ret < 0) {
 		ret = -errno;
-		return ret;
+		goto exit;
 	}
 
 	ret = ioctl(state->fd, PROXY_IOC_GET_MTD_INFO, &state->mtd_info);
 	if (ret < 0) {
 		ret = -errno;
-		return ret;
+		goto exit;
 	}
 
 	state->shared_mem_buf_mmap_size = state->shm_info.total_buf_size;
@@ -86,10 +87,11 @@ int open_proxy_device_state(const char *path, struct proxy_device_state *state)
 
 	if (state->shared_mem_buf == NULL) {
 		ret = -EFAULT;
-		return ret;
+		goto exit;
 	}
 
-	return 0;
+exit:
+	return ret;
 }
 
 void close_proxy_device(struct proxy_device_state *state)
