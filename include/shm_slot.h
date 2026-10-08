@@ -40,13 +40,13 @@ struct shm_slot_hdr {
 	 * occuring within the slot -
 	 *
 	 * For write slots, they represent the data and OOB buffer lengths that
-	 * are specified by the upper MTD write_oob callee.
+	 * are specified by the upper MTD write_oob caller.
 	 * When writing back (doing an ACK), userspace should prepare a whole
 	 * page buffer in the slot, containing the original buffers within the
 	 * slot.
 	 *
 	 * For read slots, they represent the data and OOB buffer lengths that
-	 * are specified by the upper MTD read_oob callee.
+	 * are specified by the upper MTD read_oob caller.
 	 * When reading back (doing an ACK), userspace should put only the
 	 * returned data and OOB buffers in their appropriate sub-buffers, and
 	 * the lengths in ACK request should be set according to these

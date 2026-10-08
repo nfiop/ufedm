@@ -53,7 +53,7 @@ static void fill_shm_slot_packet_buffer(struct shared_mem_slot *shm_slot,
 	u8 *shm_slot_buf = (u8 *)shm_slot->buf;
 
 	/* If we have a NULL pointer in either databuf or
-	 * oobbuf, it means the callee (in the upper MTD layer)
+	 * oobbuf, it means the caller (in the upper MTD layer)
 	 * never had such buffers in its initial request in the
 	 * first place, so we shouldn't do memset(..., 0, len) or
 	 * memset(..., 0xFF, len) here.
