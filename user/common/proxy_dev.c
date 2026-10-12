@@ -112,6 +112,7 @@ static void zero_transform_context_results(
 
 static void *worker_thread_func(void *arg)
 {
+	int rc = 0;
 	transform_answer_t answer;
 	struct transform_context_results context_res;
 	u64 counter = 0;
@@ -120,14 +121,15 @@ static void *worker_thread_func(void *arg)
 	struct shm_slot_hdr *hdr;
 	struct proxy_nack nack;
 	struct proxy_ack ack;
-
-	int rc = 0;
+	transform_data_func_t callback;
 
 	hdr = (struct shm_slot_hdr *)&state->slot->header;
 
 	assert(state != NULL);
 	assert(state->transform_func != NULL);
 	assert(state->efd >= 0);
+
+	callback = state->transform_func;
 
 	while (!state->_stop) {
 		// This call should block until there's a new
@@ -146,8 +148,15 @@ static void *worker_thread_func(void *arg)
 			break;
 
 		zero_transform_context_results(&context_res);
-		answer =
-		    state->transform_func(hdr, state->slot->buf, &context_res);
+
+		/* Copy OOB and data bytes to a temporary buffer so to disallow
+		 * direct manipulation of the shared memory buffer within
+		 * the callback function.
+		 */
+		memcpy(
+		    state->raw_page_buf, state->slot->buf, state->raw_page_len);
+
+		answer = callback(hdr, state->raw_page_buf, &context_res);
 		if (had_fatal_stop)
 			break;
 
@@ -165,6 +174,9 @@ static void *worker_thread_func(void *arg)
 				break;
 			}
 		} else {
+			/* Copy data back now to the shared memory slot. */
+			memcpy(state->slot->buf, state->raw_page_buf,
+			    state->raw_page_len);
 			ack.base.queue_idx = state->queue_idx;
 			ack.base.slot_num = state->slot_idx;
 			ack.base.seq_num = hdr->seq_num;
@@ -200,12 +212,13 @@ static void destroy_threads(
 			continue;
 		}
 		pthread_join(state->thread_array[idx].tid, NULL);
+		free(state->thread_array[idx].raw_page_buf);
 	}
 }
 
 static int create_threads(struct proxy_device_queue_state *state,
-    u8 *shared_mem_buffer, size_t slot_size,
-    transform_data_func_t transform_callback,
+    u8 *shared_mem_buffer, size_t slot_size, size_t flash_page_size,
+    void *transform_callback,
     notify_fatal_stop_thread_func_t fatal_stop_callback)
 {
 	int ret;
@@ -225,12 +238,25 @@ static int create_threads(struct proxy_device_queue_state *state,
 		thread_state->slot_buf_len = slot_size;
 		thread_state->transform_func = transform_callback;
 		thread_state->notify_fatal_stop_func = fatal_stop_callback;
+
+		thread_state->raw_page_buf = malloc(flash_page_size);
+		if (!thread_state->raw_page_buf) {
+			ret = -ENOMEM;
+			goto cleanup;
+		}
+
+		thread_state->raw_page_len = flash_page_size;
+
 		ret = pthread_create(&state->thread_array[idx].tid, NULL,
 		    worker_thread_func, thread_state);
+		if (ret < 0)
+			ret = -errno;
 
 		shared_mem_buffer += slot_size;
-		if (ret < 0)
+		if (ret < 0) {
+			free(thread_state->raw_page_buf);
 			goto cleanup;
+		}
 	}
 
 	return 0;
@@ -338,11 +364,13 @@ int create_proxy_dev_queue_state(struct proxy_device_state *dev_state,
 	    ((u8 *)dev_state->shared_mem_buf) + state->info.mem_offset;
 	if (state->info.type == PROXY_QUEUE_TYPE_READ)
 		ret = create_threads(state, shared_mem_buf,
-		    dev_state->shm_info.slot_size, func_ops->read,
+		    dev_state->shm_info.slot_size,
+		    dev_state->mtd_info.flash_page_size, func_ops->read,
 		    func_ops->fatal_stop);
 	else
 		ret = create_threads(state, shared_mem_buf,
-		    dev_state->shm_info.slot_size, func_ops->write,
+		    dev_state->shm_info.slot_size,
+		    dev_state->mtd_info.flash_page_size, func_ops->write,
 		    func_ops->fatal_stop);
 	if (ret < 0)
 		goto remove_eventfds;
@@ -359,6 +387,44 @@ remove_eventfds:
 	close_eventfds(state, state->info.slots_count);
 free_eventfds_list:
 	free(state->eventfds);
+exit:
+	return ret;
+}
+
+static void __destroy_queues(
+    struct proxy_device_queue_state *queues, size_t max_idx)
+{
+	size_t idx;
+
+	for (idx = 0; idx < max_idx; idx++) {
+		destroy_proxy_dev_queue_state(&queues[idx]);
+	}
+}
+
+int initialize_proxy_dev_queues(struct proxy_device_state *state,
+    struct proxy_device_queue_state *queues, size_t queues_count,
+    struct proxy_queue_func_ops *ops)
+{
+	int ret;
+	size_t idx;
+
+	if (queues_count > state->shm_info.queues_count)
+		queues_count = state->shm_info.queues_count;
+
+	for (idx = 0; idx < queues_count; idx++) {
+		ret =
+		    create_proxy_dev_queue_state(state, &queues[idx], idx, ops);
+		if (ret < 0) {
+			goto destroy_queues;
+		}
+	}
+
+	/* Return the number of queues being initialized */
+	ret = idx;
+	goto exit;
+
+destroy_queues:
+	__destroy_queues(queues, idx);
 exit:
 	return ret;
 }

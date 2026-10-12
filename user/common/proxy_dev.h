@@ -28,7 +28,7 @@ struct transform_context_results {
 	size_t oob_retlen;
 };
 typedef transform_answer_t (*transform_data_func_t)(
-    const struct shm_slot_hdr *hdr, const u8 *entire_page_buf,
+    const struct shm_slot_hdr *hdr, u8 *raw_page_buf,
     struct transform_context_results *context_res);
 typedef void (*notify_fatal_stop_thread_func_t)(pid_t tid, int rc);
 
@@ -60,6 +60,13 @@ struct proxy_device_thread_state {
 
 	transform_data_func_t transform_func;
 	notify_fatal_stop_thread_func_t notify_fatal_stop_func;
+
+	/* Temporary scratch buffer for callback to do its "stuff"
+	 * during its execution. When done, it's copied back as-is
+	 * to the shared memory slot page buffer.
+	 */
+	u8 *raw_page_buf;
+	size_t raw_page_len;
 };
 
 struct proxy_device_queue_state {
@@ -102,6 +109,27 @@ int open_proxy_device_state(const char *path, struct proxy_device_state *state);
 int create_proxy_dev_queue_state(struct proxy_device_state *dev_state,
     struct proxy_device_queue_state *state, size_t queue_idx,
     struct proxy_queue_func_ops *func_ops);
+
+/**
+ * @brief Create a set of states of I/O queues
+ *
+ * This function uses `create_proxy_dev_queue_state` internally,
+ * and simplifies "finding out" of the max allowed queues being
+ * initialized.
+ * This function might initialize less queues than specified in
+ * `queues_count`, if the proxy device does not support that
+ * number of queues.
+ *
+ * @param state a complete and operable proxy device state
+ * @param queues an array of `struct proxy_device_queue_state`
+ * @param queues_count a count of objects in that array
+ * @param ops a read, write and fatal-stop processing callbacks
+ * @return Number of queues actually being initialized if successful,
+ *		   other negative number for error.
+ */
+int initialize_proxy_dev_queues(struct proxy_device_state *state,
+    struct proxy_device_queue_state *queues, size_t queues_count,
+    struct proxy_queue_func_ops *ops);
 
 /**
  * @brief Destroy an I/O queue state

@@ -148,7 +148,7 @@ static bool verify_has_enough_oob_storage_for_hamming_ecc(
 }
 
 static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
-    const u8 *entire_page_buf, struct transform_context_results *context_res)
+    u8 *raw_page_buf, struct transform_context_results *context_res)
 {
 	int ret;
 	size_t ecc_step_idx;
@@ -158,8 +158,8 @@ static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
 	    state.mtd_info.flash_page_size - state.mtd_info.flash_oob_size;
 
 	// Get to the OOB region + 2 bytes offset of bad block marker.
-	u8 *eccbuf = ((u8 *)entire_page_buf) + (oob_offset) + 2;
-	u8 *databuf = (u8 *)entire_page_buf;
+	u8 *eccbuf = ((u8 *)raw_page_buf) + (oob_offset) + 2;
+	u8 *databuf = (u8 *)raw_page_buf;
 
 	if ((hdr->datalen % 256) != 0)
 		_remainder = 1;
@@ -202,7 +202,7 @@ static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
 }
 
 static transform_answer_t hamming_read_process(const struct shm_slot_hdr *hdr,
-    const u8 *entire_page_buf, struct transform_context_results *context_res)
+    u8 *raw_page_buf, struct transform_context_results *context_res)
 {
 	int stat;
 	size_t ecc_step_idx;
@@ -211,8 +211,8 @@ static transform_answer_t hamming_read_process(const struct shm_slot_hdr *hdr,
 	    state.mtd_info.flash_page_size - state.mtd_info.flash_oob_size;
 
 	// Get to the OOB region + 2 bytes offset of bad block marker.
-	u8 *eccbuf = ((u8 *)entire_page_buf) + (oob_offset) + 2;
-	u8 *databuf = (u8 *)entire_page_buf;
+	u8 *eccbuf = ((u8 *)raw_page_buf) + (oob_offset) + 2;
+	u8 *databuf = (u8 *)raw_page_buf;
 
 	if ((hdr->datalen % 256) != 0)
 		_remainder = 1;
@@ -263,14 +263,13 @@ static transform_answer_t hamming_read_process(const struct shm_slot_hdr *hdr,
 	return ANSWER_ACK;
 }
 
-static transform_answer_t dummy_nack_process(const struct shm_slot_hdr *hdr,
-    const u8 *entire_page_buf, struct transform_context_results *context_res)
+static transform_answer_t dummy_read_write_nack_process(
+    const struct shm_slot_hdr *hdr, u8 *raw_page_buf,
+    struct transform_context_results *context_res)
 {
+	(void)hdr;
+	(void)raw_page_buf;
 	context_res->errno_rc = s_errno_rc;
-
-	VLOG(3, stderr, "%s: Full page dump, data_len %u, oob_len: %u:\n",
-	    __func__, hdr->datalen, hdr->ooblen);
-	VHEXDUMP(3, stderr, entire_page_buf, hdr->datalen + hdr->ooblen);
 
 	if (prog_params.timeout) {
 		// FIXME: 3 seconds feel arbitrary, but should work for now...
@@ -285,8 +284,6 @@ static transform_answer_t dummy_nack_process(const struct shm_slot_hdr *hdr,
 
 static int create_queues(struct proxy_device_state *state)
 {
-	int ret;
-
 	struct proxy_queue_func_ops func_ops = {
 	    .fatal_stop = NULL,
 	    .write = NULL,
@@ -297,38 +294,24 @@ static int create_queues(struct proxy_device_state *state)
 	func_ops.read = hamming_read_process;
 
 	if (prog_params.nack_writes_errno != 0) {
-		func_ops.write = dummy_nack_process;
+		func_ops.write = dummy_read_write_nack_process;
 	}
 
 	if (prog_params.nack_reads_errno != 0) {
-		func_ops.read = dummy_nack_process;
+		func_ops.read = dummy_read_write_nack_process;
 	}
 
 	if (prog_params.timeout) {
-		func_ops.read = dummy_nack_process;
-		func_ops.write = dummy_nack_process;
+		func_ops.read = dummy_read_write_nack_process;
+		func_ops.write = dummy_read_write_nack_process;
 	}
 
 	if (prog_params.exit_on_error) {
 		func_ops.fatal_stop = fatal_stop_callback;
 	}
 
-	ret = create_proxy_dev_queue_state(state, &queues[0], 0, &func_ops);
-	if (ret < 0) {
-		goto exit;
-	}
-
-	ret = create_proxy_dev_queue_state(state, &queues[1], 1, &func_ops);
-	if (ret < 0) {
-		goto destroy_first_queue;
-	}
-
-	return 0;
-
-destroy_first_queue:
-	destroy_proxy_dev_queue_state(&queues[0]);
-exit:
-	return ret;
+	return initialize_proxy_dev_queues(
+	    state, queues, PROXY_MAX_QUEUES_COUNT, &func_ops);
 }
 
 static int parse_uint(const char *s, unsigned int *out)
@@ -442,9 +425,18 @@ int handle_params(int argc, char **argv)
 	return 0;
 }
 
+static void destroy_queues(int max_idx)
+{
+	int i;
+	for (i = 0; i < max_idx; i++) {
+		destroy_proxy_dev_queue_state(&queues[i]);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	int ret;
+	size_t initialized_queues_count;
 	struct timespec ts;
 
 	struct sigaction sa = {
@@ -476,14 +468,15 @@ int main(int argc, char **argv)
 	if (ret < 0)
 		goto destroy_proxy_device_state;
 
+	initialized_queues_count = ret;
+
 	ts.tv_sec = 0;
 	ts.tv_nsec = 100 * 1000 * 1000; // 100 ms
 	while (!atomic_load(&stop)) {
 		nanosleep(&ts, NULL);
 	}
 
-	destroy_proxy_dev_queue_state(&queues[0]);
-	destroy_proxy_dev_queue_state(&queues[1]);
+	destroy_queues(initialized_queues_count);
 
 destroy_proxy_device_state:
 	close_proxy_device(&state);
