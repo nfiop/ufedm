@@ -29,7 +29,7 @@ struct transform_context_results {
 };
 typedef transform_answer_t (*transform_data_func_t)(
     const struct shm_slot_hdr *hdr, u8 *raw_page_buf,
-    struct transform_context_results *context_res);
+    struct transform_context_results *context_res, void *private_data);
 typedef void (*notify_fatal_stop_thread_func_t)(pid_t tid, int rc);
 
 struct proxy_device_state {
@@ -67,6 +67,11 @@ struct proxy_device_thread_state {
 	 */
 	u8 *raw_page_buf;
 	size_t raw_page_len;
+
+	/* Private data that can be used during execution of a thread callback
+	 */
+	void *private_data;
+	void (*priv_teardown)(void *);
 };
 
 struct proxy_device_queue_state {
@@ -108,7 +113,8 @@ int open_proxy_device_state(const char *path, struct proxy_device_state *state);
  */
 int create_proxy_dev_queue_state(struct proxy_device_state *dev_state,
     struct proxy_device_queue_state *state, size_t queue_idx,
-    struct proxy_queue_func_ops *func_ops);
+    struct proxy_queue_func_ops *func_ops, int (*thread_priv_create)(void **),
+    void (*thread_priv_teardown)(void *));
 
 /**
  * @brief Create a set of states of I/O queues
@@ -129,7 +135,8 @@ int create_proxy_dev_queue_state(struct proxy_device_state *dev_state,
  */
 int initialize_proxy_dev_queues(struct proxy_device_state *state,
     struct proxy_device_queue_state *queues, size_t queues_count,
-    struct proxy_queue_func_ops *ops);
+    struct proxy_queue_func_ops *ops, int (*thread_priv_create)(void **),
+    void (*thread_priv_teardown)(void *));
 
 /**
  * @brief Destroy an I/O queue state

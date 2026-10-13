@@ -156,7 +156,8 @@ static void *worker_thread_func(void *arg)
 		memcpy(
 		    state->raw_page_buf, state->slot->buf, state->raw_page_len);
 
-		answer = callback(hdr, state->raw_page_buf, &context_res);
+		answer = callback(hdr, state->raw_page_buf, &context_res,
+		    state->private_data);
 		if (had_fatal_stop)
 			break;
 
@@ -203,27 +204,38 @@ static void destroy_threads(
 	int ret;
 	size_t idx;
 	const char *dummy_buf = "0\n";
+	struct proxy_device_thread_state *thread;
 
 	for (idx = 0; idx < max_thread_index; idx++) {
-		ret = write(state->thread_array[idx].efd, dummy_buf,
-		    sizeof(*dummy_buf));
+		thread = &state->thread_array[idx];
+		ret = write(thread->efd, dummy_buf, sizeof(*dummy_buf));
 		if (ret < 0) {
 			perror("write");
 			continue;
 		}
-		pthread_join(state->thread_array[idx].tid, NULL);
-		free(state->thread_array[idx].raw_page_buf);
+
+		pthread_join(thread->tid, NULL);
+
+		if (thread->priv_teardown && thread->private_data)
+			thread->priv_teardown(thread->private_data);
+
+		free(thread->raw_page_buf);
 	}
 }
 
 static int create_threads(struct proxy_device_queue_state *state,
     u8 *shared_mem_buffer, size_t slot_size, size_t flash_page_size,
     void *transform_callback,
-    notify_fatal_stop_thread_func_t fatal_stop_callback)
+    notify_fatal_stop_thread_func_t fatal_stop_callback,
+    int (*thread_priv_create)(void **), void (*thread_priv_teardown)(void *))
 {
 	int ret;
 	size_t idx;
 	struct proxy_device_thread_state *thread_state;
+
+	if ((thread_priv_create && !thread_priv_teardown) ||
+	    (!thread_priv_create && thread_priv_teardown))
+		return -EINVAL;
 
 	for (idx = 0; idx < state->info.slots_count; idx++) {
 		thread_state = &state->thread_array[idx];
@@ -238,6 +250,13 @@ static int create_threads(struct proxy_device_queue_state *state,
 		thread_state->slot_buf_len = slot_size;
 		thread_state->transform_func = transform_callback;
 		thread_state->notify_fatal_stop_func = fatal_stop_callback;
+		thread_state->priv_teardown = thread_priv_teardown;
+
+		if (thread_priv_create) {
+			ret = thread_priv_create(&thread_state->private_data);
+			if (ret < 0)
+				goto cleanup;
+		}
 
 		thread_state->raw_page_buf = malloc(flash_page_size);
 		if (!thread_state->raw_page_buf) {
@@ -325,7 +344,8 @@ cleanup:
 
 int create_proxy_dev_queue_state(struct proxy_device_state *dev_state,
     struct proxy_device_queue_state *state, size_t queue_idx,
-    struct proxy_queue_func_ops *func_ops)
+    struct proxy_queue_func_ops *func_ops, int (*thread_priv_create)(void **),
+    void (*thread_priv_teardown)(void *))
 {
 	int ret;
 	u8 *shared_mem_buf;
@@ -366,12 +386,14 @@ int create_proxy_dev_queue_state(struct proxy_device_state *dev_state,
 		ret = create_threads(state, shared_mem_buf,
 		    dev_state->shm_info.slot_size,
 		    dev_state->mtd_info.flash_page_size, func_ops->read,
-		    func_ops->fatal_stop);
+		    func_ops->fatal_stop, thread_priv_create,
+		    thread_priv_teardown);
 	else
 		ret = create_threads(state, shared_mem_buf,
 		    dev_state->shm_info.slot_size,
 		    dev_state->mtd_info.flash_page_size, func_ops->write,
-		    func_ops->fatal_stop);
+		    func_ops->fatal_stop, thread_priv_create,
+		    thread_priv_teardown);
 	if (ret < 0)
 		goto remove_eventfds;
 
@@ -403,7 +425,8 @@ static void __destroy_queues(
 
 int initialize_proxy_dev_queues(struct proxy_device_state *state,
     struct proxy_device_queue_state *queues, size_t queues_count,
-    struct proxy_queue_func_ops *ops)
+    struct proxy_queue_func_ops *ops, int (*thread_priv_create)(void **),
+    void (*thread_priv_teardown)(void *))
 {
 	int ret;
 	size_t idx;
@@ -412,8 +435,8 @@ int initialize_proxy_dev_queues(struct proxy_device_state *state,
 		queues_count = state->shm_info.queues_count;
 
 	for (idx = 0; idx < queues_count; idx++) {
-		ret =
-		    create_proxy_dev_queue_state(state, &queues[idx], idx, ops);
+		ret = create_proxy_dev_queue_state(state, &queues[idx], idx,
+		    ops, thread_priv_create, thread_priv_teardown);
 		if (ret < 0) {
 			goto destroy_queues;
 		}

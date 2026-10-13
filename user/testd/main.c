@@ -148,7 +148,7 @@ static bool verify_has_enough_oob_storage_for_hamming_ecc(
 }
 
 static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
-    u8 *raw_page_buf, struct transform_context_results *context_res)
+    u8 *raw_page_buf, struct transform_context_results *context_res, void *priv)
 {
 	int ret;
 	size_t ecc_step_idx;
@@ -156,6 +156,9 @@ static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
 	size_t _remainder = 0;
 	size_t oob_offset =
 	    state.mtd_info.flash_page_size - state.mtd_info.flash_oob_size;
+
+	/* Unused */
+	(void)priv;
 
 	// Get to the OOB region + 2 bytes offset of bad block marker.
 	u8 *eccbuf = ((u8 *)raw_page_buf) + (oob_offset) + 2;
@@ -202,13 +205,16 @@ static transform_answer_t hamming_write_process(const struct shm_slot_hdr *hdr,
 }
 
 static transform_answer_t hamming_read_process(const struct shm_slot_hdr *hdr,
-    u8 *raw_page_buf, struct transform_context_results *context_res)
+    u8 *raw_page_buf, struct transform_context_results *context_res, void *priv)
 {
 	int stat;
 	size_t ecc_step_idx;
 	size_t _remainder = 0;
 	size_t oob_offset =
 	    state.mtd_info.flash_page_size - state.mtd_info.flash_oob_size;
+
+	/* Unused */
+	(void)priv;
 
 	// Get to the OOB region + 2 bytes offset of bad block marker.
 	u8 *eccbuf = ((u8 *)raw_page_buf) + (oob_offset) + 2;
@@ -265,10 +271,12 @@ static transform_answer_t hamming_read_process(const struct shm_slot_hdr *hdr,
 
 static transform_answer_t dummy_read_write_nack_process(
     const struct shm_slot_hdr *hdr, u8 *raw_page_buf,
-    struct transform_context_results *context_res)
+    struct transform_context_results *context_res, void *priv)
 {
+	/* Unused */
 	(void)hdr;
 	(void)raw_page_buf;
+	(void)priv;
 	context_res->errno_rc = s_errno_rc;
 
 	if (prog_params.timeout) {
@@ -311,7 +319,7 @@ static int create_queues(struct proxy_device_state *state)
 	}
 
 	return initialize_proxy_dev_queues(
-	    state, queues, PROXY_MAX_QUEUES_COUNT, &func_ops);
+	    state, queues, PROXY_MAX_QUEUES_COUNT, &func_ops, NULL, NULL);
 }
 
 static int parse_uint(const char *s, unsigned int *out)
