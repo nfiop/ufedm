@@ -126,17 +126,26 @@ error_open_mtd_device:
 
 int locate_all_backend_mtds(uint *mtd_minors_list, size_t count)
 {
+	int ret;
+
 	s_backend_mtds =
 	    kvzalloc(sizeof(struct mtd_info *) * count, GFP_KERNEL);
 	if (!s_backend_mtds) {
 		return -ENOMEM;
 	};
 
-	return attach_backend_mtd_devices(
-	    s_backend_mtds, mtd_minors_list, count);
+	ret =
+	    attach_backend_mtd_devices(s_backend_mtds, mtd_minors_list, count);
+	if (ret < 0) {
+		kvfree(s_backend_mtds);
+		return ret;
+	}
+
+	return 0;
 }
 
 void put_backend_mtd_devices(size_t count)
 {
 	__put_backend_mtd_devices(s_backend_mtds, count);
+	kvfree(s_backend_mtds);
 }
