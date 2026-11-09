@@ -82,11 +82,11 @@ static int __init ufedm_init(void)
 
 	ret = validate_mtds_list();
 	if (ret != 0)
-		return ret;
+		goto free_upper_mtds;
 
 	ret = locate_all_backend_mtds(mtds, g_mtds_count);
 	if (ret != 0)
-		return ret;
+		goto free_upper_mtds;
 
 	ret = proxy_device_class_init(g_mtds_count);
 	if (ret != 0)
@@ -105,6 +105,8 @@ error_upper_mtd_initialize_devices:
 	proxy_device_class_exit();
 error_create_proxy_device_class:
 	put_backend_mtd_devices(g_mtds_count);
+free_upper_mtds:
+	kvfree(s_upper_mtds);
 	return ret;
 }
 
