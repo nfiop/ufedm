@@ -23,7 +23,7 @@
 #include <time.h>
 #include <unistd.h>
 
-/* Imported from libufedmdev-io */
+/* Imported from libufedm-dev */
 #include "proxy_dev.h"
 #include "linux-mtd/proxy_ioctl.h"
 #include "linux-mtd/shared_mem.h"

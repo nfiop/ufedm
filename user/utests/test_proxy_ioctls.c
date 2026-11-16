@@ -13,7 +13,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-/* Imported from libufedmdev-io */
+/* Imported from libufedm-dev */
 #include "proxy_dev.h"
 #include "linux-mtd/proxy_ioctl.h"
 #include "linux-mtd/proxy_queue.h"

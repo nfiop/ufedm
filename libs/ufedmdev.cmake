@@ -1,0 +1,52 @@
+cmake_minimum_required(VERSION 3.20)
+
+include(ExternalProject)
+
+set(UFEDMDEV_SOURCE_DIR
+    "${CMAKE_CURRENT_LIST_DIR}/ufedmdev"
+)
+
+set(UFEDMDEV_ROOT_DIR
+    "${CMAKE_BINARY_DIR}/ufedmdev"
+)
+
+set(UFEDMDEV_BUILD_DIR
+    "${UFEDMDEV_ROOT_DIR}/build"
+)
+
+set(UFEDMDEV_INSTALL_DIR
+    "${UFEDMDEV_ROOT_DIR}/install"
+)
+
+ExternalProject_Add(ufedmdev
+    SOURCE_DIR
+        "${UFEDMDEV_SOURCE_DIR}"
+
+    BINARY_DIR
+        "${UFEDMDEV_BUILD_DIR}"
+
+    CMAKE_ARGS
+        -DCMAKE_INSTALL_PREFIX=${UFEDMDEV_INSTALL_DIR}
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        -DCMAKE_AR=${CMAKE_AR}
+        -DCMAKE_RANLIB=${CMAKE_RANLIB}
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+
+    BUILD_COMMAND
+        ${CMAKE_COMMAND} --build <BINARY_DIR>
+
+    INSTALL_COMMAND
+        ${CMAKE_COMMAND} --install <BINARY_DIR>
+
+    BUILD_ALWAYS
+        TRUE
+)
+
+set(UFEDMDEV_LIBRARY
+    "${UFEDMDEV_INSTALL_DIR}/lib/libufedmdev.a"
+)
+
+set(UFEDMDEV_INCLUDE_DIR
+    "${UFEDMDEV_INSTALL_DIR}/include"
+)

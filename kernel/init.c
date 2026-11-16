@@ -12,7 +12,7 @@
 #include "proxy_device/class.h"
 #include "upper_mtd/device.h"
 
-/* Imported from libufedmdev-io */
+/* Imported from libufedm-dev */
 #include "linux-mtd/defs.h"
 
 MODULE_LICENSE("GPL");

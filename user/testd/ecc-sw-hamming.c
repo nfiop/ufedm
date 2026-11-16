@@ -29,7 +29,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-/* Imported from libufedmdev-io */
+/* Imported from libufedm-dev */
 #include "linux-mtd/defs.h"
 
 /*

@@ -5,7 +5,7 @@
 
 #include "proxy_device/eventfd.h"
 
-/* Imported from libufedmdev-io */
+/* Imported from libufedm-dev */
 #include "linux-mtd/proxy_queue.h"
 
 struct protected_eventfd_ctx *proxy_eventfd_ctx_based_on_type_and_slot(
