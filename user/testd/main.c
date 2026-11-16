@@ -23,9 +23,10 @@
 #include <time.h>
 #include <unistd.h>
 
+/* Imported from libufedmdev-io */
 #include "proxy_dev.h"
-#include "proxy_ioctl.h"
-#include "shared_mem.h"
+#include "linux-mtd/proxy_ioctl.h"
+#include "linux-mtd/shared_mem.h"
 
 extern int ecc_sw_hamming_calculate(const unsigned char *buf,
     unsigned int step_size, unsigned char *code, bool sm_order);

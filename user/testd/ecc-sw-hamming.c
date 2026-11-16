@@ -29,7 +29,8 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "defs.h"
+/* Imported from libufedmdev-io */
+#include "linux-mtd/defs.h"
 
 /*
  * invparity is a 256 byte table that contains the odd parity

@@ -14,9 +14,10 @@
 #include <linux/mutex.h>
 #include <linux/types.h>
 
-#include "proxy_ioctl.h"
-#include "shared_mem.h"
-#include "shm_slot.h"
+/* Imported from libufedmdev-io */
+#include "linux-mtd/proxy_ioctl.h"
+#include "linux-mtd/shared_mem.h"
+#include "linux-mtd/shm_slot.h"
 
 #define PROXY_DEVICE_NAME "ufedm_proxy"
 

@@ -9,9 +9,11 @@
 #include <linux/slab.h>
 
 #include "backing_mtd/device.h"
-#include "defs.h"
 #include "proxy_device/class.h"
 #include "upper_mtd/device.h"
+
+/* Imported from libufedmdev-io */
+#include "linux-mtd/defs.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Liav A");

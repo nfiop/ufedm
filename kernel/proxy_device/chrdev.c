@@ -17,9 +17,10 @@
 #include "proxy_device/eventfd.h"
 #include "proxy_device/io.h"
 
-#include "proxy_ioctl.h"
-#include "proxy_queue.h"
-#include "shm_slot.h"
+/* Imported from libufedmdev-io */
+#include "linux-mtd/proxy_ioctl.h"
+#include "linux-mtd/proxy_queue.h"
+#include "linux-mtd/shm_slot.h"
 
 static int proxy_chrdev_open(struct inode *inode, struct file *filp)
 {

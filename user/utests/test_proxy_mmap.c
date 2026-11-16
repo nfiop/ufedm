@@ -11,9 +11,10 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+/* Imported from libufedmdev-io */
 #include "proxy_dev.h"
-#include "proxy_ioctl.h"
-#include "shared_mem.h"
+#include "linux-mtd/proxy_ioctl.h"
+#include "linux-mtd/shared_mem.h"
 
 static void test_invalid_mmap_non_shared(int fd, size_t shm_region_size)
 {

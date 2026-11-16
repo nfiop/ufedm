@@ -1,11 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 
 add_executable(testd main.c ecc-sw-hamming.c
-    ${PROJECT_SOURCE_DIR}/user/common/proxy_dev.c)
+    ${PROJECT_SOURCE_DIR}/libs/ufedmdev-io/proxy_dev.c)
 
 target_include_directories(testd PRIVATE
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/user/common
+    ${PROJECT_SOURCE_DIR}/libs/ufedmdev-io
 )
 
 target_compile_options(testd PRIVATE -Wall -Wextra -Werror)

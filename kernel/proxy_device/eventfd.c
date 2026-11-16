@@ -5,7 +5,8 @@
 
 #include "proxy_device/eventfd.h"
 
-#include "proxy_queue.h"
+/* Imported from libufedmdev-io */
+#include "linux-mtd/proxy_queue.h"
 
 struct protected_eventfd_ctx *proxy_eventfd_ctx_based_on_type_and_slot(
     struct ufedm_proxy_device *dev, enum proxy_queue_type type, size_t slot_idx)

@@ -13,9 +13,10 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+/* Imported from libufedmdev-io */
 #include "proxy_dev.h"
-#include "proxy_ioctl.h"
-#include "proxy_queue.h"
+#include "linux-mtd/proxy_ioctl.h"
+#include "linux-mtd/proxy_queue.h"
 
 static int __test_proxy_get_mtd_info_cmd(int fd)
 {

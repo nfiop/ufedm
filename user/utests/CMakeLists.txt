@@ -7,11 +7,10 @@ set(PROXY_UTESTS
 
 foreach(t ${PROXY_UTESTS})
     add_executable(${t} ${t}.c 
-        ${PROJECT_SOURCE_DIR}/user/common/proxy_dev.c)
+        ${PROJECT_SOURCE_DIR}/libs/ufedmdev-io/proxy_dev.c)
 
     target_include_directories(${t} PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/user/common
+        ${PROJECT_SOURCE_DIR}/libs/ufedmdev-io
     )
 
     target_compile_options(${t} PRIVATE -Wall -Wextra -Werror)

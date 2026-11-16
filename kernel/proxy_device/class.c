@@ -10,8 +10,10 @@
 #include <linux/mtd/spinand.h>
 
 #include "backing_mtd/device.h"
-#include "defs.h"
 #include "proxy_device/class.h"
+
+/* Imported from libufedmdev-io */
+#include "linux-mtd/defs.h"
 
 struct prox_dev_class {
 	struct class *device_class;
