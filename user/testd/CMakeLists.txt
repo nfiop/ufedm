@@ -8,7 +8,7 @@ target_include_directories(testd PRIVATE
 )
 
 target_link_libraries(testd PRIVATE
-    ${UFEDMDEV_LIBRARY}
+    ${UFEDM_DEV_LIBRARY}
 )
 
 add_dependencies(testd ufedm-dev)

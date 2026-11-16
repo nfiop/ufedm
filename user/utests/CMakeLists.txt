@@ -16,7 +16,7 @@ foreach(t ${PROXY_UTESTS})
     )
 
     target_link_libraries(${t} PRIVATE
-        ${UFEDMDEV_LIBRARY}
+        ${UFEDM_DEV_LIBRARY}
     )
 
     target_compile_options(${t} PRIVATE -Wall -Wextra -Werror)
