@@ -3,11 +3,11 @@ cmake_minimum_required(VERSION 3.20)
 include(ExternalProject)
 
 set(UFEDMDEV_SOURCE_DIR
-    "${CMAKE_CURRENT_LIST_DIR}/ufedmdev"
+    "${CMAKE_CURRENT_LIST_DIR}/ufedm-dev"
 )
 
 set(UFEDMDEV_ROOT_DIR
-    "${CMAKE_BINARY_DIR}/ufedmdev"
+    "${CMAKE_BINARY_DIR}/ufedm-dev"
 )
 
 set(UFEDMDEV_BUILD_DIR
@@ -18,7 +18,7 @@ set(UFEDMDEV_INSTALL_DIR
     "${UFEDMDEV_ROOT_DIR}/install"
 )
 
-ExternalProject_Add(ufedmdev
+ExternalProject_Add(ufedm-dev
     SOURCE_DIR
         "${UFEDMDEV_SOURCE_DIR}"
 
@@ -44,7 +44,7 @@ ExternalProject_Add(ufedmdev
 )
 
 set(UFEDMDEV_LIBRARY
-    "${UFEDMDEV_INSTALL_DIR}/lib/libufedmdev.a"
+    "${UFEDMDEV_INSTALL_DIR}/lib/libufedm-dev.a"
 )
 
 set(UFEDMDEV_INCLUDE_DIR

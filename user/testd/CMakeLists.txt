@@ -2,16 +2,16 @@ cmake_minimum_required(VERSION 3.20)
 
 add_executable(testd main.c ecc-sw-hamming.c)
 
-# FIXME: Consider using the exposed setting from the ufedmdev.cmake file itself
+# FIXME: Consider using the exposed setting from the ufedm-dev.cmake file itself
 target_include_directories(testd PRIVATE
-    ${PROJECT_SOURCE_DIR}/libs/ufedmdev
+    ${PROJECT_SOURCE_DIR}/libs/ufedm-dev
 )
 
 target_link_libraries(testd PRIVATE
     ${UFEDMDEV_LIBRARY}
 )
 
-add_dependencies(testd ufedmdev)
+add_dependencies(testd ufedm-dev)
 
 target_compile_options(testd PRIVATE -Wall -Wextra -Werror)
 target_link_options(testd PRIVATE -static)

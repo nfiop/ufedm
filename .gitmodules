@@ -1,3 +1,3 @@
 [submodule "user/common"]
-	path = libs/ufedmdev
+	path = libs/ufedm-dev
 	url = https://github.com/nfiop/libufedm-dev

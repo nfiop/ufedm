@@ -8,11 +8,11 @@ set(PROXY_UTESTS
 foreach(t ${PROXY_UTESTS})
     add_executable(${t} ${t}.c)
     
-    add_dependencies(${t} ufedmdev)
+    add_dependencies(${t} ufedm-dev)
 
-    # FIXME: Consider using the exposed setting from the ufedmdev.cmake file itself
+    # FIXME: Consider using the exposed setting from the ufedm-dev.cmake file itself
     target_include_directories(${t} PRIVATE
-        ${PROJECT_SOURCE_DIR}/libs/ufedmdev
+        ${PROJECT_SOURCE_DIR}/libs/ufedm-dev
     )
 
     target_link_libraries(${t} PRIVATE
