@@ -1,0 +1,3 @@
+[submodule "user/common"]
+	path = user/common
+	url = https://github.com/nfiop/libufedm-dev
