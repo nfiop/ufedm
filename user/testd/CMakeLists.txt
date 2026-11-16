@@ -1,10 +1,14 @@
 cmake_minimum_required(VERSION 3.20)
 
-add_executable(testd main.c ecc-sw-hamming.c
-    ${PROJECT_SOURCE_DIR}/libs/ufedmdev-io/proxy_dev.c)
+add_executable(testd main.c ecc-sw-hamming.c)
 
+# FIXME: Consider using the exposed setting from the ufedmdev-io.cmake file itself
 target_include_directories(testd PRIVATE
     ${PROJECT_SOURCE_DIR}/libs/ufedmdev-io
+)
+
+target_link_libraries(testd PRIVATE
+    ${UFEDMDEV_IO_LIBRARY}
 )
 
 target_compile_options(testd PRIVATE -Wall -Wextra -Werror)
