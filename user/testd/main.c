@@ -470,6 +470,7 @@ int main(int argc, char **argv)
 
 	ret = open_proxy_device_state(prog_params.path, &state);
 	if (ret < 0) {
+		VLOG(1, stderr, "Failed to open device: %s\n", strerror(-ret));
 		goto exit;
 	}
 
