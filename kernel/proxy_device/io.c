@@ -61,6 +61,33 @@ static void fill_shm_slot_packet_buffer(struct shared_mem_slot *shm_slot,
 
 	if (req->databuf != NULL) {
 		memcpy(shm_slot_buf, req->databuf, req->datalen);
+
+		/* According to ChatGPT, there's a claim about partial page I/O:
+		   1. Raw NAND (/dev/mtdX, using write()):
+			  - MTD writes are generally subject to NAND page and
+				alignment constraints.
+			  - A write smaller than a page may be handled by the
+				NAND driver using a partial-page program
+				operation.
+			  - The unwritten bytes are not necessarily guaranteed
+				to have a particular value.
+
+		   2. Writing through MEMWRITE / mtd_write() or NAND-specific
+		   APIs:
+			  - Behavior depends on the API and driver.
+			  - NAND erased bytes normally have the value 0xFF.
+			  - A driver may use 0xFF as padding for the unwritten
+				portion of a page.
+
+		   Therefore, we could just not care about the contents of
+		   the last user of this slot. However, since this is facing the
+		   slot is about to used by the user program, it is probably
+		   more healthy to just zero that "unused" bytes.
+	    */
+		if (req->datalen < page_data_size) {
+			memset(shm_slot_buf + req->datalen, 0,
+			    page_data_size - req->datalen);
+		}
 	}
 
 	if (req->oobbuf != NULL) {
