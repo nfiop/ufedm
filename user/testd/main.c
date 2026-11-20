@@ -135,10 +135,10 @@ void hexdump(FILE *out, const void *buf, size_t len)
 	}
 }
 
-static void fatal_stop_callback(pid_t tid, int err)
+static void fatal_stop_callback(uint64_t tid, int err)
 {
-	VLOG(2, stderr, "Fatal error, TID %d, error: %d, %s\n", tid, err,
-	    strerror(err));
+	VLOG(2, stderr, "Fatal error, TID %zu, error: %d, %s\n", (size_t)tid,
+	    err, strerror(err));
 	atomic_store(&stop, true);
 }
 
@@ -319,7 +319,7 @@ static int create_queues(struct proxy_device_state *state)
 		func_ops.fatal_stop = fatal_stop_callback;
 	}
 
-	return initialize_proxy_dev_queues(
+	return proxy_device_initialize_queues(
 	    state, queues, PROXY_MAX_QUEUES_COUNT, &func_ops, NULL, NULL);
 }
 
@@ -438,7 +438,7 @@ static void destroy_queues(int max_idx)
 {
 	int i;
 	for (i = 0; i < max_idx; i++) {
-		destroy_proxy_dev_queue_state(&queues[i]);
+		proxy_device_destroy_queue_state(&queues[i]);
 	}
 }
 
@@ -468,7 +468,7 @@ int main(int argc, char **argv)
 		goto exit;
 	}
 
-	ret = open_proxy_device_state(prog_params.path, &state);
+	ret = proxy_device_open(prog_params.path, &state);
 	if (ret < 0) {
 		VLOG(1, stderr, "Failed to open device: %s\n", strerror(-ret));
 		goto exit;
@@ -489,7 +489,7 @@ int main(int argc, char **argv)
 	destroy_queues(initialized_queues_count);
 
 destroy_proxy_device_state:
-	close_proxy_device(&state);
+	proxy_device_close(&state);
 exit:
 	return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

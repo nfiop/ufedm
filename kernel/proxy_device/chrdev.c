@@ -297,6 +297,56 @@ static long proxy_chrdev_ioctl(
 		goto exit;
 	}
 
+	case PROXY_IOC_UPPER_MTD_WRITE: {
+		struct proxy_upper_mtd_write_req tmp;
+		if (copy_from_user(&tmp, (int __user *)arg,
+			sizeof(struct proxy_upper_mtd_write_req)))
+			return -EFAULT;
+
+		ret = proxy_device_upper_write(prox_dev, &tmp);
+		if (ret < 0)
+			goto exit;
+
+		tmp.retlen = ret;
+
+		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp))) {
+			ret = -EFAULT;
+			goto exit;
+		}
+
+		ret = 0;
+		goto exit;
+	};
+
+	case PROXY_IOC_UPPER_MTD_READ: {
+		struct proxy_upper_mtd_read_req tmp;
+		if (copy_from_user(&tmp, (int __user *)arg, sizeof(tmp)))
+			return -EFAULT;
+
+		ret = proxy_device_upper_read(prox_dev, &tmp);
+		if (ret < 0)
+			goto exit;
+
+		tmp.retlen = ret;
+
+		if (copy_to_user((void __user *)arg, &tmp, sizeof(tmp))) {
+			ret = -EFAULT;
+			goto exit;
+		}
+
+		ret = 0;
+		goto exit;
+	};
+
+	case PROXY_IOC_MTD_ERASE: {
+		struct proxy_mtd_erase_req tmp;
+		if (copy_from_user(&tmp, (int __user *)arg,
+			sizeof(struct proxy_mtd_erase_req)))
+			return -EFAULT;
+		ret = proxy_device_erase_backing_mtd(prox_dev, &tmp);
+		goto exit;
+	};
+
 	default:
 		ret = -EINVAL;
 		goto exit;

@@ -216,6 +216,13 @@ struct ufedm_proxy_device {
 
 	struct proxy_requests_queue *readq;
 	struct proxy_requests_queue *writeq;
+
+	/* The upper MTD **SHOULD** be spawned after this device node is valid,
+	 * so any pending user might need to wait until this pointer is
+	 * set.
+	 */
+	struct mtd_info *upper_mtd;
+	struct mutex upper_mtd_spawn_lock;
 };
 
 int proxy_device_create(struct ufedm_proxy_device *dev);

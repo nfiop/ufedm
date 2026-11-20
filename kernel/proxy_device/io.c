@@ -6,6 +6,7 @@
 #include <linux/delay.h>
 #include <linux/kthread.h>
 
+#include <linux/math64.h>
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
 
@@ -598,4 +599,197 @@ void proxy_device_put_slot(struct proxy_io_slot *slot)
 	clear_bit(slot->slot_idx, q->allocated_bitmap);
 
 	mutex_unlock(&q->lock);
+}
+
+int proxy_device_upper_write(
+    struct ufedm_proxy_device *dev, struct proxy_upper_mtd_write_req *req)
+{
+	size_t retlen;
+	size_t total_retlen = 0;
+	int ret = 0;
+	int io_len;
+	char *kbuf;
+	struct mtd_info *upper_mtd;
+	size_t offset = req->offset;
+	size_t length = req->length;
+	size_t size = length;
+	const char __user *buf;
+
+	mutex_lock(&dev->upper_mtd_spawn_lock);
+	upper_mtd = dev->upper_mtd;
+	if (!upper_mtd) {
+		ret = -EAGAIN;
+		goto exit;
+	}
+
+	if (offset >= upper_mtd->size)
+		return -ENOSPC;
+
+	if (offset + length > upper_mtd->size)
+		length = upper_mtd->size - offset;
+
+	if (!length) {
+		ret = -EINVAL;
+		goto exit_only_unlock;
+	}
+
+	kbuf = mtd_kmalloc_up_to(upper_mtd, &size);
+	if (!kbuf) {
+		ret = -ENOMEM;
+		goto exit_only_unlock;
+	}
+
+	buf = u64_to_user_ptr(req->buffer);
+
+	while (length) {
+		io_len = min_t(size_t, length, size);
+
+		if (copy_from_user(kbuf, buf, io_len)) {
+			ret = -EFAULT;
+			goto exit;
+		}
+
+		ret = mtd_write(upper_mtd, length, io_len, &retlen, kbuf);
+
+		/*
+		 * Return -ENOSPC only if no data could be written at all.
+		 * Otherwise just return the number of bytes that actually
+		 * have been written.
+		 */
+		if ((ret == -ENOSPC) && (total_retlen))
+			break;
+
+		if (!ret) {
+			offset += retlen;
+			total_retlen += retlen;
+			length -= retlen;
+			buf += retlen;
+		} else {
+			goto exit;
+		}
+	}
+
+	ret = total_retlen;
+exit:
+	kfree(kbuf);
+exit_only_unlock:
+	mutex_unlock(&dev->upper_mtd_spawn_lock);
+	return ret;
+}
+
+int proxy_device_upper_read(
+    struct ufedm_proxy_device *dev, struct proxy_upper_mtd_read_req *req)
+{
+	size_t retlen;
+	size_t total_retlen = 0;
+	int ret = 0;
+	int io_len;
+	char *kbuf;
+	struct mtd_info *upper_mtd;
+	size_t offset = req->offset;
+	size_t length = req->length;
+	size_t size = length;
+	char __user *buf;
+
+	mutex_lock(&dev->upper_mtd_spawn_lock);
+	upper_mtd = dev->upper_mtd;
+	if (!upper_mtd) {
+		ret = -EAGAIN;
+		goto exit;
+	}
+
+	if (offset + length > upper_mtd->size) {
+		if (offset < upper_mtd->size)
+			length = upper_mtd->size - offset;
+		else
+			length = 0;
+	}
+
+	if (!length) {
+		ret = -EINVAL;
+		goto exit_only_unlock;
+	}
+
+	kbuf = mtd_kmalloc_up_to(upper_mtd, &size);
+	if (!kbuf) {
+		ret = -ENOMEM;
+		goto exit_only_unlock;
+	}
+
+	buf = u64_to_user_ptr(req->buffer);
+
+	while (length) {
+		io_len = min_t(size_t, length, size);
+
+		ret = mtd_read(upper_mtd, offset, io_len, &retlen, kbuf);
+		/* Nand returns -EBADMSG on ECC errors, but it returns
+		 * the data. For our userspace tools it is important
+		 * to dump areas with ECC errors!
+		 * For kernel internal usage it also might return -EUCLEAN
+		 * to signal the caller that a bitflip has occurred and has
+		 * been corrected by the ECC algorithm.
+		 * Userspace software which accesses NAND this way
+		 * must be aware of the fact that it deals with NAND
+		 */
+		if (!ret || mtd_is_bitflip_or_eccerr(ret)) {
+			offset += retlen;
+			if (copy_to_user(buf, kbuf, retlen)) {
+				ret = -EFAULT;
+				goto exit;
+			} else {
+				total_retlen += retlen;
+			}
+
+			length -= retlen;
+			buf += retlen;
+			if (retlen == 0)
+				length = 0;
+		} else {
+			goto exit;
+		}
+	}
+
+	ret = total_retlen;
+exit:
+	kfree(kbuf);
+exit_only_unlock:
+	mutex_unlock(&dev->upper_mtd_spawn_lock);
+	return ret;
+}
+
+int proxy_device_erase_backing_mtd(
+    struct ufedm_proxy_device *dev, const struct proxy_mtd_erase_req *req)
+{
+	int ret;
+	u32 remainder;
+	u64 quotient;
+	struct erase_info *erase;
+	struct mtd_info *backend;
+	backend = dev->backend_dev;
+	if (!backend) {
+		ret = -EAGAIN;
+		goto exit;
+	}
+
+	quotient = div_u64_rem(req->offset, backend->erasesize, &remainder);
+	if (remainder != 0)
+		return -EINVAL;
+
+	quotient = div_u64_rem(req->length, backend->erasesize, &remainder);
+	if (remainder != 0)
+		return -EINVAL;
+
+	erase->addr = req->offset;
+	erase->len = req->length;
+
+	erase = kvzalloc(sizeof(struct erase_info), GFP_KERNEL);
+	if (!erase) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	ret = mtd_erase(backend, erase);
+	kvfree(erase);
+exit:
+	return ret;
 }

@@ -509,6 +509,11 @@ static int create_device(struct upper_mtd_device *dev, struct mtd_info *backend,
 		return ret;
 	}
 
+	/* Now that the MTD is registered, connect it to the proxy device */
+	mutex_lock(&proxy_dev->upper_mtd_spawn_lock);
+	proxy_dev->upper_mtd = mtd;
+	mutex_unlock(&proxy_dev->upper_mtd_spawn_lock);
+
 	return 0;
 }
 

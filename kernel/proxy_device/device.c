@@ -37,6 +37,7 @@ int proxy_device_create(struct ufedm_proxy_device *dev)
 	int ret;
 
 	mutex_init(&dev->shm_mapping.lock);
+	mutex_init(&dev->upper_mtd_spawn_lock);
 
 	atomic_set(&dev->already_open, 0);
 

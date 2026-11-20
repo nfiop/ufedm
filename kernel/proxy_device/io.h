@@ -74,6 +74,41 @@ int start_io_watchdog_threads(struct ufedm_proxy_device *dev);
 void stop_io_watchdog_threads(struct ufedm_proxy_device *dev);
 
 /**
+ * @brief Do a WRITE request on the upper MTD via the proxy device
+ *
+ *
+ * @param dev the proxy device corresponding to the upper MTD device
+ * @param req a copied-from-user write request
+ * @return Count of bytes that were actually transferred if done
+ *         succesfully, otherwise negative number as error
+ */
+int proxy_device_upper_write(
+    struct ufedm_proxy_device *dev, struct proxy_upper_mtd_write_req *req);
+
+/**
+ * @brief Do a READ request on the upper MTD via the proxy device
+ *
+ *
+ * @param dev the proxy device corresponding to the upper MTD device
+ * @param req a copied-from-user read request
+ * @return Count of bytes that were actually transferred if done
+ *         succesfully, otherwise negative number as error
+ */
+int proxy_device_upper_read(
+    struct ufedm_proxy_device *dev, struct proxy_upper_mtd_read_req *req);
+
+/**
+ * @brief Do an ERASE request on the backing MTD via the proxy device
+ *
+ *
+ * @param dev the proxy device corresponding to the backing MTD device
+ * @param req a copied-from-user erase request
+ * @return 0 if done succesfully, otherwise negative number as error
+ */
+int proxy_device_erase_backing_mtd(
+    struct ufedm_proxy_device *dev, const struct proxy_mtd_erase_req *req);
+
+/**
  * @brief Do a ACK on a I/O request in a slot
  *
  * Do a ACK ("Acknowledge") on a given packet/request in a slot

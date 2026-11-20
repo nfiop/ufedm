@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	fd = open_proxy_device_by_argv_index(argv[1]);
+	fd = linux_proxy_device_open_by_argv_index(argv[1]);
 	if (fd < 0) {
 		return 1;
 	}
