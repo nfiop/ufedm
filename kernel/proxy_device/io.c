@@ -765,11 +765,9 @@ int proxy_device_erase_backing_mtd(
 	u64 quotient;
 	struct erase_info *erase;
 	struct mtd_info *backend;
+
 	backend = dev->backend_dev;
-	if (!backend) {
-		ret = -EAGAIN;
-		goto exit;
-	}
+	BUG_ON(backend == NULL);
 
 	quotient = div_u64_rem(req->offset, backend->erasesize, &remainder);
 	if (remainder != 0)
