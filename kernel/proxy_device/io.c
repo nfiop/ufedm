@@ -629,7 +629,7 @@ int proxy_device_upper_write(
 		length = upper_mtd->size - offset;
 
 	if (!length) {
-		ret = -EINVAL;
+		ret = 0;
 		goto exit_only_unlock;
 	}
 
@@ -706,7 +706,7 @@ int proxy_device_upper_read(
 	}
 
 	if (!length) {
-		ret = -EINVAL;
+		ret = 0;
 		goto exit_only_unlock;
 	}
 
