@@ -619,7 +619,7 @@ int proxy_device_upper_write(
 	upper_mtd = dev->upper_mtd;
 	if (!upper_mtd) {
 		ret = -EAGAIN;
-		goto exit;
+		goto exit_only_unlock;
 	}
 
 	if (offset >= upper_mtd->size)
@@ -646,7 +646,7 @@ int proxy_device_upper_write(
 
 		if (copy_from_user(kbuf, buf, io_len)) {
 			ret = -EFAULT;
-			goto exit;
+			goto exit_free_buffer;
 		}
 
 		ret = mtd_write(upper_mtd, length, io_len, &retlen, kbuf);
@@ -665,12 +665,12 @@ int proxy_device_upper_write(
 			length -= retlen;
 			buf += retlen;
 		} else {
-			goto exit;
+			goto exit_free_buffer;
 		}
 	}
 
 	ret = total_retlen;
-exit:
+exit_free_buffer:
 	kfree(kbuf);
 exit_only_unlock:
 	mutex_unlock(&dev->upper_mtd_spawn_lock);
@@ -695,7 +695,7 @@ int proxy_device_upper_read(
 	upper_mtd = dev->upper_mtd;
 	if (!upper_mtd) {
 		ret = -EAGAIN;
-		goto exit;
+		goto exit_only_unlock;
 	}
 
 	if (offset + length > upper_mtd->size) {
@@ -735,7 +735,7 @@ int proxy_device_upper_read(
 			offset += retlen;
 			if (copy_to_user(buf, kbuf, retlen)) {
 				ret = -EFAULT;
-				goto exit;
+				goto exit_free_buffer;
 			} else {
 				total_retlen += retlen;
 			}
@@ -745,12 +745,12 @@ int proxy_device_upper_read(
 			if (retlen == 0)
 				length = 0;
 		} else {
-			goto exit;
+			goto exit_free_buffer;
 		}
 	}
 
 	ret = total_retlen;
-exit:
+exit_free_buffer:
 	kfree(kbuf);
 exit_only_unlock:
 	mutex_unlock(&dev->upper_mtd_spawn_lock);
